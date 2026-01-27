@@ -1,0 +1,152 @@
+#ifndef TSP_HELPER_H
+#define TSP_HELPER_H
+
+#include <vector>
+#include <cmath>
+#include <random>
+#include <algorithm>
+#include <numeric>
+#include <limits>
+
+#include "datatypes.h"
+
+
+struct TSPSolution {
+    std::vector<uint32_t> order;
+    double cost;
+    bool operator<(const TSPSolution& other) const {
+        return cost < other.cost;
+    }
+};
+
+/* ================================
+   TSP COST
+================================ */
+inline double ComputeCost(const std::vector<uint32_t>& order,
+                          const std::vector<point2D>& points) {
+    double cost = 0.0;
+    for (size_t i = 0; i < order.size() - 1; ++i) {
+        cost += dist(points[order[i]], points[order[i + 1]]);
+    }
+    cost += dist(points[order.back()], points[order.front()]);
+    return cost;
+}
+
+/* ================================
+   ORDER CROSSOVER (OX)
+================================ */
+inline std::vector<uint32_t> OrderCrossover(
+        const std::vector<uint32_t>& p1,
+        const std::vector<uint32_t>& p2,
+        std::mt19937& gen) {
+
+    size_t n = p1.size();
+    std::uniform_int_distribution<size_t> distIdx(0, n - 1);
+    size_t l = distIdx(gen);
+    size_t r = distIdx(gen);
+    if (l > r) std::swap(l, r);
+
+    std::vector<uint32_t> child(n, UINT32_MAX);
+
+    for (size_t i = l; i <= r; ++i)
+        child[i] = p1[i];
+
+    size_t idx = (r + 1) % n;
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t city = p2[(r + 1 + i) % n];
+        if (std::find(child.begin(), child.end(), city) == child.end()) {
+            child[idx] = city;
+            idx = (idx + 1) % n;
+        }
+    }
+    return child;
+}
+
+/* ================================
+   MUTATION
+================================ */
+inline void SwapMutation(std::vector<uint32_t>& order,
+                         std::mt19937& gen,
+                         double prob) {
+    std::uniform_real_distribution<double> p(0.0, 1.0);
+    if (p(gen) < prob) {
+        std::uniform_int_distribution<size_t> d(0, order.size() - 1);
+        size_t i = d(gen);
+        size_t j = d(gen);
+        std::swap(order[i], order[j]);
+    }
+}
+
+/* ================================
+   MAIN GA
+================================ */
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const int population_size = 100, const int max_generation = 2000) {
+
+    int POP_SIZE = population_size; // population size
+    int MAX_GEN = max_generation; // max number of generation
+    const int GEN_LOG_ITER = 1000;
+    const double MUT_PROB = 0.2;
+    const int ELITE = 20;
+
+    int n = points.size();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    /* Initialize population */
+    std::vector<TSPSolution> population(POP_SIZE);
+    for (TSPSolution& sol : population) {
+        sol.order.resize(n);
+        std::iota(sol.order.begin(), sol.order.end(), 0);
+        std::shuffle(sol.order.begin(), sol.order.end(), gen);
+        sol.cost = ComputeCost(sol.order, points);
+    }
+    std::sort(population.begin(), population.end());
+
+    for (int generation = 0; generation <= MAX_GEN; ++generation) {
+        std::vector<TSPSolution> new_population;
+        for (int i = 0; i < ELITE; ++i) {
+            new_population.push_back(population[i]);
+        }
+        while (new_population.size() < POP_SIZE) {
+            int id1 = rand() % POP_SIZE;
+            int id2 = rand() % POP_SIZE;
+            TSPSolution sol;
+            sol.order = OrderCrossover(population[id1].order, population[id2].order, gen);
+            SwapMutation(sol.order, gen, MUT_PROB);
+            sol.cost = ComputeCost(sol.order, points);
+            new_population.push_back(sol);
+        }
+        population = new_population;
+        std::sort(population.begin(), population.end());
+        if (generation % GEN_LOG_ITER == 0) {
+            NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
+        }
+    }
+
+    return std::min_element(population.begin(), population.end())->order;
+}
+
+std::vector<uint32_t> TSPTwoOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    std::vector<uint32_t> order = baseOrder;
+    double bestCost = ComputeCost(order, points);
+    bool improve = true;
+    while (improve) {
+        improve = false;
+        for (size_t i = 0; i < order.size() - 1; ++i) {
+            for (size_t j = i + 1; j < order.size(); ++j) {
+                std::reverse(order.begin() + i, order.begin() + j + 1);
+                double newCost = ComputeCost(order, points);
+                if (newCost < bestCost) {
+                    bestCost = newCost;
+                    improve = true;
+                }
+                else {
+                    std::reverse(order.begin() + i, order.begin() + j + 1);
+                }
+            }
+        }
+    }
+    return order;
+}
+
+#endif
