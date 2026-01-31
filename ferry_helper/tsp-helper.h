@@ -80,13 +80,13 @@ inline void SwapMutation(std::vector<uint32_t>& order,
 /* ================================
    MAIN GA
 ================================ */
-std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const int population_size = 100, const int max_generation = 2000) {
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
 
-    int POP_SIZE = population_size; // population size
-    int MAX_GEN = max_generation; // max number of generation
-    const int GEN_LOG_ITER = 1000;
+    uint32_t POP_SIZE = population_size; // population size
+    uint32_t MAX_GEN = max_generation; // max number of generation
+    const uint32_t GEN_LOG_ITER = 1000;
     const double MUT_PROB = 0.2;
-    const int ELITE = 20;
+    const uint32_t ELITE = 20;
 
     int n = points.size();
     std::random_device rd;
@@ -102,9 +102,9 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const int
     }
     std::sort(population.begin(), population.end());
 
-    for (int generation = 0; generation <= MAX_GEN; ++generation) {
+    for (uint32_t generation = 0; generation <= MAX_GEN; ++generation) {
         std::vector<TSPSolution> new_population;
-        for (int i = 0; i < ELITE; ++i) {
+        for (uint32_t i = 0; i < ELITE; ++i) {
             new_population.push_back(population[i]);
         }
         while (new_population.size() < POP_SIZE) {

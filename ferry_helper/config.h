@@ -3,13 +3,16 @@
 
 #include "ns3/core-module.h"    
 
+using namespace ns3;
+
 struct Config {
     // sim config
-    double simTime = 3000.0; // seconds
+    double simTime = 1000.0; // seconds
     double commRange = 150.0; // meters
+    double ferryHeight = 50.0; // meters
     double areaWidth = 1000; // meters
     uint32_t nGrounds = 5;
-    uint32_t nFerrys = 10;
+    uint32_t nFerrys = 1;
 
     bool enable_background = false;
 
@@ -30,6 +33,9 @@ struct Config {
     uint32_t chunkPayload = 1024; // 1KB, currently, we will only use this
     uint32_t bundlePayload = 102400; // 100KB, chunking will be implemented later
 
+    // visualization config
+    uint32_t positionLogInterval = 250; // ms ~ 0.25s
+
 } config;
 
 struct Logging {
@@ -37,5 +43,12 @@ struct Logging {
     uint32_t bundleSuccessForward = 0;
     uint32_t bundleDropped = 0;
 } simlog;
+
+struct SimulationVariablePointer {
+    uint32_t nGrounds = 0;
+    uint32_t nFerrys = 0;
+    NodeContainer* groundNodes;
+    NodeContainer* ferryNodes;
+} simVar;
 
 #endif // CONFIG

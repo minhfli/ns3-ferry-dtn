@@ -19,6 +19,7 @@
 #include "ferry_helper/tsp-helper.h"
 #include "ferry_helper/cluster-helper.h"
 #include "ferry_helper/packet-helper.h"
+#include "ferry_helper/viz-helper.h"
 
 #include <vector>
 #include <algorithm>
@@ -545,6 +546,11 @@ int main(int argc, char* argv[])
     allNodes.Add(GroundNodes);
     allNodes.Add(ferryNode);
 
+    simVar.nGrounds = config.nGrounds;
+    simVar.nFerrys = config.nFerrys;
+    simVar.groundNodes = &GroundNodes;
+    simVar.ferryNodes = &ferryNode;
+
     // ==========================================================
     // CẤU HÌNH WIFI (802.11b)
     // ==========================================================
@@ -616,7 +622,7 @@ int main(int argc, char* argv[])
     MobilityHelper ferryMobility;
     ferryMobility.SetPositionAllocator("ns3::ListPositionAllocator"); // Đặt vị trí ban đầu cụ thể
     Ptr<ListPositionAllocator> lpa = CreateObject<ListPositionAllocator>();
-    lpa->Add(Vector(config.areaWidth / 2, config.areaWidth / 2, 50)); // Bắt đầu tại (0,0) cao 50m
+    lpa->Add(Vector(config.areaWidth / 2, config.areaWidth / 2, config.ferryHeight)); // Bắt đầu tại (0,0) cao 50m
     ferryMobility.SetPositionAllocator(lpa);
 
     ferryMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
@@ -624,7 +630,7 @@ int main(int argc, char* argv[])
 
     // Kích hoạt vận tốc cho Ferry (Nếu không nó sẽ đứng im)
     Ptr<ConstantVelocityMobilityModel> cvmm = ferryNode.Get(0)->GetObject<ConstantVelocityMobilityModel>();
-    ScheduleTSPMobility(points, order, config.ferrySpeed, 50, cvmm);
+    ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm);
 
     // ==========================================================
     // INTERNET STACK & APP
@@ -695,9 +701,11 @@ int main(int argc, char* argv[])
     anim.UpdateNodeColor(ferryNode.Get(0)->GetId(), 255, 0, 0);
     anim.UpdateNodeSize(ferryNode.Get(0)->GetId(), 60, 60);
 
+    FerryVisualizer::SetUp();
     Simulator::Stop(Seconds(config.simTime)); // Đã set trong app
     Simulator::Run();
     Simulator::Destroy();
+    FerryVisualizer::CleanUp();
 
     return 0;
 }
