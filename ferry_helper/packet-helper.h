@@ -5,6 +5,8 @@
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 
+#include <string>
+
 using namespace ns3;
 
 struct Bundle {
@@ -188,6 +190,16 @@ class MessageTypeHeader : public Header {
 
     void SetNodeIP(Ipv4Address ip) { m_nodeIp = ip.Get(); }
     Ipv4Address GetNodeIP() const { return Ipv4Address(m_nodeIp); }
+
+    std::string GetMetaName() const {
+        if (m_type == FERRY_BEACON) return "FERRY_BEACON";
+        if (m_type == FERRY_HELLO) return "FERRY_HELLO";
+        if (m_type == FERRY_ACCEPT_TRANSFER) return "FERRY_ACCEPT_TRANSFER";
+        if (m_type == GROUND_HELLO) return "GROUND_HELLO";
+        if (m_type == BUNDLE) return "BUNDLE";
+        if (m_type == BUNDLE_ACK) return "BUNDLE_ACK";
+        return "UNKNOWN";
+    }
 
     static TypeId GetTypeId(void)
     {

@@ -2,12 +2,13 @@
 #define CONFIG
 
 #include "ns3/core-module.h"    
+#include "ns3/network-module.h"
 
 using namespace ns3;
 
 struct Config {
     // sim config
-    double simTime = 1000.0; // seconds
+    double simTime = 200.0; // seconds
     double commRange = 150.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 1000; // meters

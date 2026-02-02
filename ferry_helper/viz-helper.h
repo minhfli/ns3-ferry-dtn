@@ -9,34 +9,61 @@
 
 
 #include "config.h"
-
+#include "global.h"
+#include "packet-helper.h"
 #include <string>
 #include <ostream>
+#include <vector>
 
 using namespace ns3;
 
 
 namespace FerryVisualizer {
-    std::string vizFileName = "/home/minh/ferry-viz/ferry.log";
+    std::string vizFileName = "/mnt/d/coding/python/dtn-visualizer/dtn.log";
     std::fstream file;
 
-    void updatePosition();
-    void declare();
-    void logPacket();
+    void logPosition();
+    void logDeclare();
+    void logPacket(const std::string& src, const std::string& dest, const std::string meta);
+    void logInit();
+    /**
+     * @param list list of bundle
+     */
+    void logBuffer(const std::string& node, const std::vector<Bundle>& list);
 
 
     void SetUp() {
         file.open(vizFileName, std::ios::out);
         file << "--Declare" << std::endl;
-        declare();
+        logDeclare();
         file << "--Events" << std::endl;
-        Simulator::Schedule(Time(0), &updatePosition);
+        logInit();
+        Simulator::Schedule(Time(0), &logPosition);
     }
     void CleanUp() {
         file.close();
     }
 
-    void declare() {
+    void logInit() {
+        file << "Time=0" << std::endl;
+        for (uint32_t i = 0; i < simVar.nGrounds; i++) {
+            file << "event=buffer"
+                << " node=g" << simVar.groundNodes->Get(i)->GetId()
+                << " list=|"
+                << " reason=init"
+                << std::endl;
+        }
+        for (uint32_t i = 0; i < simVar.nFerrys; i++) {
+            file << "event=buffer"
+                << " node=f" << simVar.ferryNodes->Get(i)->GetId()
+                << " list=|"
+                << " reason=init"
+                << std::endl;
+        }
+    }
+
+
+    void logDeclare() {
         file << "area=" << config.areaWidth << "|" << config.areaWidth << std::endl;
         for (uint32_t i = 0; i < simVar.nGrounds; i++) {
             file << "node=g" << i
@@ -61,8 +88,7 @@ namespace FerryVisualizer {
         }
     }
 
-
-    void updatePosition() {
+    void logPosition() {
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         // open file
         if (Simulator::Now() == 0) {
@@ -79,8 +105,25 @@ namespace FerryVisualizer {
             auto pos = mobility->GetPosition();
             file << "event=pos" << " node=f" << node->GetId() << " x=" << pos.x << " y=" << pos.y << std::endl;
         }
-        Simulator::Schedule(MilliSeconds(config.positionLogInterval), &updatePosition);
+        Simulator::Schedule(MilliSeconds(config.positionLogInterval), &logPosition);
     }
+
+    void logPacket(const std::string& src, const std::string& dest, const std::string meta) {
+
+        file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
+        file << "event=send" << " source=" << src << " dest=" << dest << " meta=" << meta << std::endl;
+    }
+
+    void logBuffer(const std::string& node, const std::vector<Bundle>& list) {
+        file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
+        file << "event=buffer" << " node=" << node << " list=";
+        for (auto bundle : list) {
+            file << nodeId[bundle.source.Get()] << ":" << nodeId[bundle.destination.Get()] << ":" << bundle.id;
+            file << "|";
+        }
+        file << " reason=update" << std::endl;
+    }
+
 }
 
 #endif // VIZ_HELPER_H

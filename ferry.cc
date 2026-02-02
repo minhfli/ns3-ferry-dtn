@@ -14,6 +14,7 @@
 #include "ns3/wave-module.h" 
 #include "ns3/point-to-point-module.h"
 
+#include "ferry_helper/global.h"
 #include "ferry_helper/config.h"
 #include "ferry_helper/ferry-helper.h"
 #include "ferry_helper/tsp-helper.h"
@@ -30,19 +31,6 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("SimpleDtnApp");
 
-constexpr uint8_t NODE_TYPE_GROUND = 0;
-constexpr uint8_t NODE_TYPE_FERRY = 1;
-
-// ===========================================================================
-// Global variables
-// ===========================================================================
-
-Ptr<UniformRandomVariable> m_rand;
-std::vector<Ipv4Address> groundNodeIps;
-// mapping from IP to type, all node have this infomation
-std::unordered_map<uint32_t, uint8_t> nodeType;
-// mapping from IP to group, all node have this infomation
-std::unordered_map<uint32_t, uint8_t> nodeGroup;
 
 // ===========================================================================
 // 2. APP & BUNDLE STORAGE (Có cập nhật Jitter)
@@ -320,6 +308,11 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
         MessageTypeHeader topHeader;
         packet->RemoveHeader(topHeader);
 
+        FerryVisualizer::logPacket(
+            nodeId[topHeader.GetNodeIP().Get()], // from node id
+            nodeId[m_myIp.Get()], // to node id
+            topHeader.GetMetaName() // metadata
+        );
         // Tự mình gửi thì bỏ qua (Loopback)
         if (topHeader.GetNodeIP() == m_myIp) continue;
 
@@ -364,6 +357,8 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
             );
             if (bundle.destination == m_myIp) {
                 NS_LOG_UNCOND("Bundle reached destination");
+                Time jitter = GetJitter();
+                Simulator::Schedule(jitter, &SimpleDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
                 continue;
             }
 
@@ -374,6 +369,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
             }
             NS_LOG_UNCOND("Bundle added to buffer");
             m_buffer.push_back(bundle);
+            FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
             // RemoveOldBundle();
 
             Time jitter = GetJitter();
@@ -388,6 +384,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
                 << "s Node " << m_myIp
                 << ": BUNDLE ACK from " << topHeader.GetNodeIP());
             RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+            FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
             if (m_nodeType == NODE_TYPE_FERRY) {
                 if (nodeType[topHeader.GetNodeIP().Get()] == NODE_TYPE_GROUND)
                     ScheduleAcceptTransfer(topHeader.GetNodeIP());
@@ -438,6 +435,7 @@ void SimpleDtnApp::GenerateBundle() {
 
     m_buffer.push_back(b);
     RemoveOldBundle();
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
     NS_LOG_UNCOND("Node " << m_myIp << ": CREATED Bundle " << b.id << " to " << b.destination);
 
@@ -661,6 +659,7 @@ int main(int argc, char* argv[])
         if (n == 0) // TODO temp 
             app->EnableBundleGeneration(10.0);
         nodeType[i.GetAddress(n).Get()] = NODE_TYPE_GROUND;
+        nodeId[i.GetAddress(n).Get()] = "g" + std::to_string(n);
     }
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
@@ -672,6 +671,8 @@ int main(int argc, char* argv[])
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
         nodeType[i.GetAddress(config.nGrounds).Get()] = NODE_TYPE_FERRY;
+        nodeId[i.GetAddress(config.nGrounds).Get()] = "f" + std::to_string(ferryNode.Get(0)->GetId());
+
     }
 
     // Animation
