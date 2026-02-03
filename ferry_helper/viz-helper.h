@@ -11,6 +11,8 @@
 #include "config.h"
 #include "global.h"
 #include "packet-helper.h"
+#include "datatypes.h"
+
 #include <string>
 #include <ostream>
 #include <vector>
@@ -26,6 +28,10 @@ namespace FerryVisualizer {
     void logDeclare();
     void logPacket(const std::string& src, const std::string& dest, const std::string meta);
     void logInit();
+    void logBeacon(std::string node);
+
+    void logRoute(const std::string& node, const std::vector<point2D> waypoints);
+    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex);
     /**
      * @param list list of bundle
      */
@@ -123,6 +129,31 @@ namespace FerryVisualizer {
         }
         file << " reason=update" << std::endl;
     }
+
+    void logRoute(const std::string& node, const std::vector<point2D> waypoints) {
+        file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
+        file << "event=route" << " node=" << node << " tour=";
+        for (auto waypoint : waypoints) {
+            file << waypoint.x << ":" << waypoint.y << "|";
+        }
+        file << std::endl;
+    }
+
+    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex) {
+        int n = order.size();
+        std::vector<point2D> route;
+        for (int i = 0; i < n; i++) {
+            startIndex = (startIndex + 1) % n;
+            route.push_back(points[order[startIndex]]);
+        }
+        return route;
+    }
+
+    void logBeacon(std::string node) {
+        file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
+        file << "event=beacon" << " node=" << node << std::endl;
+    }
+
 
 }
 

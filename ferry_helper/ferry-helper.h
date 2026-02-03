@@ -26,15 +26,8 @@ std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double area
     // Danh sách "active list" chứa các index của điểm cần xem xét
     std::vector<int> activeList;
 
-    // Bộ sinh số ngẫu nhiên (Mersenne Twister)
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, areaWidth);
-    std::uniform_real_distribution<> angleDis(0.0, 2 * M_PI); // Góc ngẫu nhiên
-    std::uniform_real_distribution<> radiusDis(r, 2 * r);     // Bán kính từ r đến 2r
-
     // 2. Khởi tạo điểm đầu tiên ngẫu nhiên
-    point2D p0 = { dis(gen), dis(gen) };
+    point2D p0 = { m_rand->GetValue(0, areaWidth) , m_rand->GetValue(0, areaWidth) };
     points.push_back(p0);
 
     int col0 = (int)(p0.x / cellSize);
@@ -45,8 +38,7 @@ std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double area
     // 3. Vòng lặp chính
     while (!activeList.empty() && points.size() < n) {
         // Chọn ngẫu nhiên một điểm từ active list
-        std::uniform_int_distribution<> listIdxDis(0, activeList.size() - 1);
-        int randIdx = listIdxDis(gen);
+        int randIdx = m_rand->GetInteger(0, activeList.size() - 1);
         int pointIdx = activeList[randIdx];
         point2D center = points[pointIdx];
 
@@ -54,8 +46,8 @@ std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double area
 
         // Thử k lần để sinh điểm mới xung quanh điểm center
         for (int i = 0; i < k; ++i) {
-            double angle = angleDis(gen);
-            double dist = radiusDis(gen);
+            double angle = m_rand->GetValue(0, 2 * M_PI);
+            double dist = m_rand->GetValue(0, r);
 
             double newX = center.x + std::cos(angle) * dist;
             double newY = center.y + std::sin(angle) * dist;
@@ -127,16 +119,13 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
     double rSq = r * r; // So sánh với r^2 để tránh dùng hàm sqrt()
 
     // Cài đặt bộ sinh số ngẫu nhiên chuẩn
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(0.0, areaWidth);
 
     int maxAttemptsTotal = n * 1000; // Giới hạn số lần thử để tránh treo máy nếu không gian quá chật
     int attempts = 0;
 
     while (points.size() < n && attempts < maxAttemptsTotal) {
         // 1. Sinh ngẫu nhiên toàn cục (bất kỳ đâu trên bản đồ)
-        point2D candidate = { dis(gen), dis(gen) };
+        point2D candidate = { m_rand->GetValue(0, areaWidth), m_rand->GetValue(0, areaWidth) };
 
         bool collision = false;
 

@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "datatypes.h"
+#include "global.h"
 
 
 struct TSPSolution {
@@ -89,8 +90,7 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const uin
     const uint32_t ELITE = 20;
 
     int n = points.size();
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(1337); //! MAGIC NUMBER - Fixed seed
 
     /* Initialize population */
     std::vector<TSPSolution> population(POP_SIZE);

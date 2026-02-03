@@ -188,6 +188,8 @@ void SimpleDtnApp::Beacon() {
     InetSocketAddress broadcast = InetSocketAddress(Ipv4Address("255.255.255.255"), m_port);
     m_socket->SendTo(packet, 0, broadcast);
 
+    FerryVisualizer::logBeacon(nodeId[m_myIp.Get()]);
+
     Time nextBeacon = Seconds(m_rand->GetValue(0.0, config.beaconRandomness)) + Seconds(config.beaconInterval);
     // Schedule next Hello
     Simulator::Schedule(nextBeacon, &SimpleDtnApp::Beacon, this);
@@ -480,23 +482,27 @@ void SimpleDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
     }
 }
 
-
-
 void ScheduleNextWaypoint(const std::vector<point2D>& points,
     const std::vector<uint32_t>& order,
     double speed,
-    uint32_t index,
-    Ptr<ConstantVelocityMobilityModel> mobility) {
+    uint32_t index, // curent index
+    Ptr<ConstantVelocityMobilityModel> mobility,
+    std::string nodeId
+) {
 
     uint32_t nextIndex = (index + 1) % order.size();
 
-    point2D relative = { points[order[nextIndex]].x - points[order[index]].x,
-                         points[order[nextIndex]].y - points[order[index]].y };
+    Vector3D currentPos = mobility->GetPosition();
+
+
+    point2D relative = { points[order[nextIndex]].x - currentPos.x,
+                         points[order[nextIndex]].y - currentPos.y };
 
     double distance = std::sqrt(relative.x * relative.x + relative.y * relative.y);
     double time = distance / speed;
 
-    Simulator::Schedule(Seconds(time), &ScheduleNextWaypoint, points, order, speed, nextIndex, mobility);
+    Simulator::Schedule(Seconds(time), &ScheduleNextWaypoint, points, order, speed, nextIndex, mobility, nodeId);
+    FerryVisualizer::logRoute(nodeId, FerryVisualizer::tspRouteHelper(points, order, index));
 
     point2D velocity;
     velocity.x = relative.x / distance * speed;
@@ -511,10 +517,10 @@ void ScheduleTSPMobility(
     const std::vector<uint32_t>& order,
     double speed,
     double height,
-    Ptr<ConstantVelocityMobilityModel> mobility) {
-
-    mobility->SetPosition(Vector(points[order[0]].x, points[order[0]].y, height));
-    ScheduleNextWaypoint(points, order, speed, 0, mobility);
+    Ptr<ConstantVelocityMobilityModel> mobility,
+    std::string nodeId // for logging
+) {
+    Simulator::Schedule(Time(0), &ScheduleNextWaypoint, points, order, speed, order.size() - 1, mobility, nodeId);
 }
 
 // ===========================================================================
@@ -628,7 +634,7 @@ int main(int argc, char* argv[])
 
     // Kích hoạt vận tốc cho Ferry (Nếu không nó sẽ đứng im)
     Ptr<ConstantVelocityMobilityModel> cvmm = ferryNode.Get(0)->GetObject<ConstantVelocityMobilityModel>();
-    ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm);
+    ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm, "f" + std::to_string(ferryNode.Get(0)->GetId()));
 
     // ==========================================================
     // INTERNET STACK & APP
