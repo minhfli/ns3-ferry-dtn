@@ -8,7 +8,7 @@ using namespace ns3;
 
 struct Config {
     // sim config
-    double simTime = 5000.0; // seconds
+    double simTime = 500.0; // seconds
     double commRange = 120.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 2000; // meters

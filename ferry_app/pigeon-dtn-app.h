@@ -1,8 +1,5 @@
-/*
- * DTN Base Framework for NS-3 (OCB Version)
- * Focus: Store-Carry-Forward Logic (The ONE style)
- * Mode: 802.11p (WAVE/OCB) - No Association, Immediate Communication
- */
+#ifndef PIGEON_DTN_APP_H
+#define PIGEON_DTN_APP_H
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -14,39 +11,35 @@
 #include "ns3/wave-module.h" 
 #include "ns3/point-to-point-module.h"
 
-#include "ferry_helper/global.h"
-#include "ferry_helper/config.h"
-#include "ferry_helper/report.h"
+#include "../ferry_helper/global.h"
+#include "../ferry_helper/config.h"
+#include "../ferry_helper/report.h"
 
-#include "ferry_helper/ferry-helper.h"
-#include "ferry_helper/tsp-helper.h"
-#include "ferry_helper/cluster-helper.h"
-#include "ferry_helper/packet-helper.h"
-#include "ferry_helper/viz-helper.h"
+#include "../ferry_helper/ferry-helper.h"
+#include "../ferry_helper/tsp-helper.h"
+#include "../ferry_helper/cluster-helper.h"
+#include "../ferry_helper/packet-helper.h"
+#include "../ferry_helper/viz-helper.h"
 
 #include <vector>
 #include <algorithm>
 #include <cmath>
 #include <unordered_map>
 
-using namespace ns3;
-
-NS_LOG_COMPONENT_DEFINE("SimpleDtnApp");
-
-
 // ===========================================================================
 // 2. APP & BUNDLE STORAGE (Có cập nhật Jitter)
 // ===========================================================================
 
-class SimpleDtnApp : public Application
+class PigeonDtnApp : public Application
 {
     public:
-    SimpleDtnApp();
-    virtual ~SimpleDtnApp();
+    PigeonDtnApp();
+    virtual ~PigeonDtnApp();
 
     static TypeId GetTypeId(void);
-    void Setup(Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType);
+    void Setup(Ptr<Node>node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType);
     void EnableBundleGeneration(double rate, bool inversed = true);
+    void InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order);
 
     private:
     static Time GetJitter();
@@ -81,9 +74,14 @@ class SimpleDtnApp : public Application
 
     void BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp);
 
+    // Mobility scheduling functions for ferry nodes
+    void ScheduleNextWaypoint(const std::vector<point2D>& points,
+        const std::vector<uint32_t>& order,
+        double speed,
+        uint32_t index,
+        Ptr<ConstantVelocityMobilityModel> mobility);
 
-    void OnNeighborDiscovery(Ipv4Address neighborIp);
-    bool ShouldForward(const Bundle& bundle, Ipv4Address neighborIp);
+    Ptr<Node> m_node;
 
     Ptr<Socket> m_socket;
     Ipv4Address m_myIp;
@@ -96,26 +94,29 @@ class SimpleDtnApp : public Application
     std::vector<Bundle> m_buffer;
     uint32_t m_maxBufferSize;
     uint32_t m_bundleIdCounter;
+
+
 };
 
-NS_OBJECT_ENSURE_REGISTERED(SimpleDtnApp);
+NS_OBJECT_ENSURE_REGISTERED(PigeonDtnApp);
 
-TypeId SimpleDtnApp::GetTypeId(void)
+TypeId PigeonDtnApp::GetTypeId(void)
 {
-    static TypeId tid = TypeId("ns3::SimpleDtnApp")
+    static TypeId tid = TypeId("ns3::PigeonDtnApp")
         .SetParent<Application>()
-        .AddConstructor<SimpleDtnApp>();
+        .AddConstructor<PigeonDtnApp>();
     return tid;
 }
 
-SimpleDtnApp::SimpleDtnApp()
+PigeonDtnApp::PigeonDtnApp()
     : m_port(80), m_maxBufferSize(100), m_bundleIdCounter(0) {
 }
 
-SimpleDtnApp::~SimpleDtnApp() {}
+PigeonDtnApp::~PigeonDtnApp() {}
 
-void SimpleDtnApp::Setup(Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType)
+void PigeonDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType)
 {
+    m_node = node;
     m_socket = socket;
     m_myIp = myIp;
     m_maxBufferSize = bufferSize;
@@ -126,12 +127,18 @@ void SimpleDtnApp::Setup(Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSi
     m_buffer.reserve(m_maxBufferSize + 1);
 }
 
+void PigeonDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order) {
+    uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
+    auto cvmm = m_node->GetObject<ConstantVelocityMobilityModel>();
+    Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this, points, order, config.ferrySpeed, startIndex, cvmm);
+}
+
 /**
  * inversed:
  *  true -> rate: average seconds between 2 bundle : seconds / packet
  *  false -> packet geration rate : packets/second
  */
-void SimpleDtnApp::EnableBundleGeneration(double rate, bool inversed) {
+void PigeonDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     if (inversed) {
         m_bundleGenRate = 1.0 / rate;
     }
@@ -140,17 +147,17 @@ void SimpleDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     }
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + m_rand->GetValue(0.0, averageBundleTime);
-    Simulator::Schedule(Seconds(startTime), &SimpleDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(startTime), &PigeonDtnApp::GenerateBundle, this);
 }
 
-void SimpleDtnApp::StartApplication(void)
+void PigeonDtnApp::StartApplication(void)
 {
     if (m_socket->Bind(InetSocketAddress(Ipv4Address::GetAny(), m_port)) == -1)
     {
         NS_LOG_UNCOND("Bind failed for node " << m_myIp);
         return;
     }
-    m_socket->SetRecvCallback(MakeCallback(&SimpleDtnApp::ReceivePacket, this));
+    m_socket->SetRecvCallback(MakeCallback(&PigeonDtnApp::ReceivePacket, this));
 
     // OCB hỗ trợ broadcast rất tốt qua IP broadcast
     m_socket->SetAllowBroadcast(true);
@@ -166,19 +173,19 @@ void SimpleDtnApp::StartApplication(void)
         NS_LOG_UNCOND("Node " << m_myIp << " is a FERRY node.");
 
 
-        Simulator::Schedule(GetJitter(), &SimpleDtnApp::Beacon, this);
+        Simulator::Schedule(GetJitter(), &PigeonDtnApp::Beacon, this);
     }
 }
 
-void SimpleDtnApp::StopApplication(void) {
+void PigeonDtnApp::StopApplication(void) {
     if (m_socket) { m_socket->Close(); }
 }
 
-Time SimpleDtnApp::GetJitter() {
+Time PigeonDtnApp::GetJitter() {
     return MicroSeconds(m_rand->GetInteger(config.jitterAmount, config.jitterAmount * 3));
 }
 
-void SimpleDtnApp::Beacon() {
+void PigeonDtnApp::Beacon() {
     // NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << m_myIp << ": Sending HELLO (OCB)");
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_BEACON);
@@ -194,10 +201,10 @@ void SimpleDtnApp::Beacon() {
 
     Time nextBeacon = Seconds(m_rand->GetValue(0.0, config.beaconRandomness)) + Seconds(config.beaconInterval);
     // Schedule next Hello
-    Simulator::Schedule(nextBeacon, &SimpleDtnApp::Beacon, this);
+    Simulator::Schedule(nextBeacon, &PigeonDtnApp::Beacon, this);
 }
 
-void SimpleDtnApp::SendGroundHello(Ipv4Address ferryIp) {
+void PigeonDtnApp::SendGroundHello(Ipv4Address ferryIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::GROUND_HELLO);
     header.SetNodeIP(m_myIp);
@@ -209,11 +216,11 @@ void SimpleDtnApp::SendGroundHello(Ipv4Address ferryIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void SimpleDtnApp::SendFerryHello(Ipv4Address ferryIp) {
+void PigeonDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     // TODO
 }
 
-void SimpleDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
+void PigeonDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_ACCEPT_TRANSFER);
     header.SetNodeIP(m_myIp);
@@ -229,7 +236,7 @@ void SimpleDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void SimpleDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
+void PigeonDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::BUNDLE);
     header.SetNodeIP(m_myIp);
@@ -243,7 +250,7 @@ void SimpleDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
 
     bundle.flag_waitingAck = true;
     Simulator::Schedule(MicroSeconds(config.bundleAckTimeout),
-        &SimpleDtnApp::BundleAckTimeout, this, bundle.id, bundle.source.Get());
+        &PigeonDtnApp::BundleAckTimeout, this, bundle.id, bundle.source.Get());
 
     Ptr<Packet> packet = Create<Packet>(0);
     packet->AddHeader(bundleHeader);
@@ -253,7 +260,7 @@ void SimpleDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void SimpleDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
+void PigeonDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::BUNDLE_ACK);
     header.SetNodeIP(m_myIp);
@@ -276,12 +283,12 @@ void SimpleDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void SimpleDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
+void PigeonDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
     Time jitter = GetJitter();
 
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false && bundle.destination == groundIp) {
-            Simulator::Schedule(jitter, &SimpleDtnApp::SendBundle, this, bundle, groundIp);
+            Simulator::Schedule(jitter, &PigeonDtnApp::SendBundle, this, bundle, groundIp);
             return;
         }
     }
@@ -289,21 +296,21 @@ void SimpleDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
     if (m_buffer.size() >= m_maxBufferSize) {
         return; // there are no buffer left to receive additional bundle
     }
-    Simulator::Schedule(jitter, &SimpleDtnApp::SendFerryAcceptTransfer, this, groundIp);
+    Simulator::Schedule(jitter, &PigeonDtnApp::SendFerryAcceptTransfer, this, groundIp);
 }
 
-void SimpleDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
+void PigeonDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
     Time jitter = GetJitter();
 
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false) { // TODO implement multiple ferry with multiple ground group
-            Simulator::Schedule(jitter, &SimpleDtnApp::SendBundle, this, bundle, ferryIp);
+            Simulator::Schedule(jitter, &PigeonDtnApp::SendBundle, this, bundle, ferryIp);
             return;
         }
     }
 }
 
-void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
+void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
     Ptr<Packet> packet;
     Address from;
     while ((packet = socket->RecvFrom(from)))
@@ -327,7 +334,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
                 << ": BEACON from Ferry " << topHeader.GetNodeIP());
             Time jitter = GetJitter();
             if (m_nodeType == NODE_TYPE_GROUND) {
-                Simulator::Schedule(jitter, &SimpleDtnApp::SendGroundHello, this, topHeader.GetNodeIP());
+                Simulator::Schedule(jitter, &PigeonDtnApp::SendGroundHello, this, topHeader.GetNodeIP());
             }
             continue;
         }
@@ -361,7 +368,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
             if (bundle.destination == m_myIp) {
                 NS_LOG_UNCOND("Bundle reached destination");
                 Time jitter = GetJitter();
-                Simulator::Schedule(jitter, &SimpleDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
+                Simulator::Schedule(jitter, &PigeonDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
                 Report::bundleReachedDestination++;
                 Report::totalHopReachedDestination += bundle.hop;
                 Report::totalHop++;
@@ -384,7 +391,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
             // RemoveOldBundle();
 
             Time jitter = GetJitter();
-            Simulator::Schedule(jitter, &SimpleDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
+            Simulator::Schedule(jitter, &PigeonDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
             continue;
         }
         if (packetType == MessageTypeHeader::BUNDLE_ACK) {
@@ -417,18 +424,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
 
 }
 
-void SimpleDtnApp::OnNeighborDiscovery(Ipv4Address neighborIp) {
-
-}
-
-bool SimpleDtnApp::ShouldForward(const Bundle& bundle, Ipv4Address neighborIp)
-{
-    if (neighborIp == bundle.source) return false;
-    if (neighborIp == bundle.destination) return true;
-    return true; // Epidemic
-}
-
-void SimpleDtnApp::GenerateBundle() {
+void PigeonDtnApp::GenerateBundle() {
     m_bundleIdCounter++;
     Bundle b;
     b.hop = 0;
@@ -454,10 +450,10 @@ void SimpleDtnApp::GenerateBundle() {
     // generate based on poisson distribution
     double jitter = m_rand->GetValue(0.0, 1.0);
     double IAT = -log(1.0 - jitter) / m_bundleGenRate;
-    Simulator::Schedule(Seconds(IAT), &SimpleDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(IAT), &PigeonDtnApp::GenerateBundle, this);
 }
 
-void SimpleDtnApp::RemoveExpiredBundles() {
+void PigeonDtnApp::RemoveExpiredBundles() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
     while (m_buffer.size() > 0 && m_buffer[0].creationTime + config.bundleTTL < currentTime) {
@@ -466,7 +462,7 @@ void SimpleDtnApp::RemoveExpiredBundles() {
     }
 }
 
-void SimpleDtnApp::RemoveOldBundle() {
+void PigeonDtnApp::RemoveOldBundle() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     while (m_buffer.size() > m_maxBufferSize) {
         NS_LOG_UNCOND("Node " << m_myIp << ": DROPPED Bundle " << m_buffer[0].id);
@@ -474,7 +470,7 @@ void SimpleDtnApp::RemoveOldBundle() {
     }
 }
 
-void SimpleDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
+void PigeonDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
     for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
         if (it->id == bundleId && it->source.Get() == sourceIp) {
             m_buffer.erase(it);
@@ -483,7 +479,7 @@ void SimpleDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
     }
 }
 
-void SimpleDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
+void PigeonDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
     for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
         if (it->id == bundleId && it->source.Get() == sourceIp) {
             it->flag_waitingAck = false; // set flag = false so bundle can be transfered again later
@@ -492,12 +488,11 @@ void SimpleDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
     }
 }
 
-void ScheduleNextWaypoint(const std::vector<point2D>& points,
+void PigeonDtnApp::ScheduleNextWaypoint(const std::vector<point2D>& points,
     const std::vector<uint32_t>& order,
     double speed,
     uint32_t index, // curent index
-    Ptr<ConstantVelocityMobilityModel> mobility,
-    std::string nodeId
+    Ptr<ConstantVelocityMobilityModel> mobility
 ) {
 
     uint32_t nextIndex = (index + 1) % order.size();
@@ -511,8 +506,9 @@ void ScheduleNextWaypoint(const std::vector<point2D>& points,
     double distance = std::sqrt(relative.x * relative.x + relative.y * relative.y);
     double time = distance / speed;
 
-    Simulator::Schedule(Seconds(time), &ScheduleNextWaypoint, points, order, speed, nextIndex, mobility, nodeId);
-    FerryVisualizer::logRoute(nodeId, FerryVisualizer::tspRouteHelper(points, order, index));
+    Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this, points, order, speed, nextIndex, mobility);
+
+    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], FerryVisualizer::tspRouteHelper(points, order, nextIndex));
 
     point2D velocity;
     velocity.x = relative.x / distance * speed;
@@ -522,177 +518,6 @@ void ScheduleNextWaypoint(const std::vector<point2D>& points,
 
 }
 
-void ScheduleTSPMobility(
-    const std::vector<point2D>& points,
-    const std::vector<uint32_t>& order,
-    double speed,
-    double height,
-    Ptr<ConstantVelocityMobilityModel> mobility,
-    std::string nodeId // for logging
-) {
-    uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
-    Simulator::Schedule(Time(0), &ScheduleNextWaypoint, points, order, speed, startIndex, mobility, nodeId);
-}
-
-// ===========================================================================
-// 3. MAIN SCRIPT (ĐÃ SỬA THÀNH OCB)
-// ===========================================================================
-int main(int argc, char* argv[])
-{
-    //! IMPORTANT 
-    std::string SIMULATION_NAME = "SIRA";
-    std::string SIMULATION_RUN = "1";
-    // set random seed so every run is the same
-    srand(1337);
-    SeedManager::SetSeed(1337);
-
-    // initialize global random generator
-    m_rand = CreateObject<UniformRandomVariable>();
-
-    // parse cmd line args
-    CommandLine cmd;
-    cmd.AddValue("commRange", "Communication range", config.commRange);
-    cmd.AddValue("name", "Simulation Name", SIMULATION_NAME);
-    cmd.AddValue("run", "Simulation Run", SIMULATION_RUN);
-    cmd.Parse(argc, argv);
-
-    LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
-
-    NodeContainer allNodes;
-    NodeContainer GroundNodes;
-    GroundNodes.Create(config.nGrounds);
-    NodeContainer ferryNode;
-    ferryNode.Create(config.nFerrys);
-    allNodes.Add(GroundNodes);
-    allNodes.Add(ferryNode);
-
-    simVar.nGrounds = config.nGrounds;
-    simVar.nFerrys = config.nFerrys;
-    simVar.groundNodes = &GroundNodes;
-    simVar.ferryNodes = &ferryNode;
-
-    // ==========================================================
-    // CẤU HÌNH WIFI (802.11b)
-    // ==========================================================
-
-    YansWifiPhyHelper wifiPhy = YansWifiPhyHelper::Default();
-    YansWifiChannelHelper wifiChannel;
-
-    // Dùng mô hình đơn giản, quan trọng là routing logic
-    wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
-    wifiChannel.AddPropagationLoss("ns3::RangePropagationLossModel", "MaxRange", DoubleValue(config.commRange));
-    wifiPhy.SetChannel(wifiChannel.Create());
-
-    WifiHelper wifi;
-    wifi.SetStandard(WIFI_PHY_STANDARD_80211b);
-
-    wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
-                                "DataMode", StringValue("DsssRate11Mbps"),
-                                "ControlMode", StringValue("DsssRate11Mbps"),
-                                "NonUnicastMode", StringValue("DsssRate11Mbps"),
-                                "RtsCtsThreshold", StringValue("0"));
-
-    WifiMacHelper wifiMac;
-    wifiMac.SetType("ns3::AdhocWifiMac");
-
-    NetDeviceContainer devices = wifi.Install(wifiPhy, wifiMac, allNodes);
-
-    // ==========================================================
-    // MOBILITY
-    // ==========================================================
-
-    double areaPadding = 200; // padding to avoid node on edge of the map
-    double rangePadding = config.commRange + 30; // padding tp avoid node near communication range
-    std::vector<point2D> points =
-        PoissonDisk_RandomSample(config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);
-
-    std::vector<uint32_t> order = TSPClassicGA(points);
-    order = TSPTwoOptOptimize(points, order);
-
-    std::vector<std::vector<uint32_t>> groundNodeClusters = KMeans(points, config.nFerrys);
-
-    MobilityHelper mobility;
-
-    Ptr<ListPositionAllocator> ground_lpa = CreateObject<ListPositionAllocator>();
-    for (uint32_t i = 0; i < config.nGrounds; i++) {
-        points[i].x += areaPadding / 2;
-        points[i].y += areaPadding / 2;
-        ground_lpa->Add(Vector(points[i].x, points[i].y, 0));
-    }
-    mobility.SetPositionAllocator(ground_lpa);
-
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.Install(GroundNodes);
-
-    // Cấu hình Ferry bay
-    MobilityHelper ferryMobility;
-    ferryMobility.SetPositionAllocator("ns3::ListPositionAllocator"); // Đặt vị trí ban đầu cụ thể
-    Ptr<ListPositionAllocator> lpa = CreateObject<ListPositionAllocator>();
-    lpa->Add(Vector(config.areaWidth / 2, config.areaWidth / 2, config.ferryHeight)); // Bắt đầu tại (0,0) cao 50m
-    ferryMobility.SetPositionAllocator(lpa);
-
-    ferryMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
-    ferryMobility.Install(ferryNode);
-
-    // Kích hoạt vận tốc cho Ferry (Nếu không nó sẽ đứng im)
-    for (uint32_t i = 0; i < config.nFerrys; i++) {
-        Ptr<ConstantVelocityMobilityModel> cvmm = ferryNode.Get(i)->GetObject<ConstantVelocityMobilityModel>();
-        ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm, "f" + std::to_string(ferryNode.Get(i)->GetId()));
-    }
-    // ==========================================================
-    // INTERNET STACK & APP
-    // ==========================================================
-
-    InternetStackHelper internet;
-    internet.Install(allNodes);
-
-    Ipv4AddressHelper ipv4;
-    ipv4.SetBase("10.1.1.0", "255.255.255.0");
-    Ipv4InterfaceContainer i = ipv4.Assign(devices);
-
-    TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
-
-    for (uint32_t n = 0; n < config.nGrounds; n++) {
-        groundNodeIps.push_back(i.GetAddress(n));
-    }
-
-    // Cài App cho Ground Nodes
-    for (uint32_t n = 0; n < config.nGrounds; n++) {
-        Ptr<Socket> socket = Socket::CreateSocket(GroundNodes.Get(n), tid);
-        Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
-        Ipv4Address address = i.GetAddress(n);
-        app->Setup(socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
-        GroundNodes.Get(n)->AddApplication(app);
-        app->SetStartTime(Seconds(1.0));
-        app->SetStopTime(Seconds(config.simTime));
-        app->EnableBundleGeneration(10.0);
-        nodeType[address.Get()] = NODE_TYPE_GROUND;
-        nodeId[address.Get()] = "g" + std::to_string(n);
-    }
-
-    // Cài App cho Ferry (Index trong container i là config.nGrounds)
-    for (uint32_t n = 0; n < config.nFerrys; n++) {
-        Ptr<Socket> socket = Socket::CreateSocket(ferryNode.Get(n), tid);
-        Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
-        Ipv4Address address = i.GetAddress(n + config.nGrounds);
-        app->Setup(socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);
-        ferryNode.Get(n)->AddApplication(app);
-        app->SetStartTime(Seconds(1.0));
-        app->SetStopTime(Seconds(config.simTime));
-        nodeType[address.Get()] = NODE_TYPE_FERRY;
-        nodeId[address.Get()] = "f" + std::to_string(ferryNode.Get(n)->GetId());
-    }
 
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
-
-    FerryVisualizer::SetUp();
-    Simulator::Stop(Seconds(config.simTime)); // Đã set trong app
-    Simulator::Run();
-    Simulator::Destroy();
-    FerryVisualizer::CleanUp();
-    Report::Export();
-
-    return 0;
-}
+#endif

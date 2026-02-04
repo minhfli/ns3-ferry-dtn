@@ -143,8 +143,8 @@ namespace FerryVisualizer {
         int n = order.size();
         std::vector<point2D> route;
         for (int i = 0; i < n; i++) {
-            startIndex = (startIndex + 1) % n;
             route.push_back(points[order[startIndex]]);
+            startIndex = (startIndex + 1) % n;
         }
         return route;
     }
