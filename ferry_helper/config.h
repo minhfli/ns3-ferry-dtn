@@ -8,18 +8,18 @@ using namespace ns3;
 
 struct Config {
     // sim config
-    double simTime = 200.0; // seconds
-    double commRange = 150.0; // meters
+    double simTime = 5000.0; // seconds
+    double commRange = 120.0; // meters
     double ferryHeight = 50.0; // meters
-    double areaWidth = 1000; // meters
-    uint32_t nGrounds = 5;
-    uint32_t nFerrys = 1;
+    double areaWidth = 2000; // meters
+    uint32_t nGrounds = 10;
+    uint32_t nFerrys = 3;
 
     bool enable_background = false;
 
     // node config
-    double beaconInterval = 5.0;    // seconds
-    double beaconRandomness = 3.0; // seconds
+    double beaconInterval = 3.0;    // seconds
+    double beaconRandomness = 1.0; // seconds
     uint32_t jitterAmount = 1000; // 1 milisecconds, used for exchange message
 
     double ferrySpeed = 15.0;      // m/s
@@ -27,7 +27,7 @@ struct Config {
     uint32_t groundBufferSize = 5; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
-    uint32_t bundleTTL = 100000000; // 100 seconds (microsec)
+    uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
 
     // physical payload size of a chunk and bundle
@@ -39,11 +39,6 @@ struct Config {
 
 } config;
 
-struct Logging {
-    uint32_t bundleCount = 0;
-    uint32_t bundleSuccessForward = 0;
-    uint32_t bundleDropped = 0;
-} simlog;
 
 struct SimulationVariablePointer {
     uint32_t nGrounds = 0;

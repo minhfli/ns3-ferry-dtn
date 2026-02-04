@@ -16,6 +16,8 @@
 
 #include "ferry_helper/global.h"
 #include "ferry_helper/config.h"
+#include "ferry_helper/report.h"
+
 #include "ferry_helper/ferry-helper.h"
 #include "ferry_helper/tsp-helper.h"
 #include "ferry_helper/cluster-helper.h"
@@ -301,7 +303,6 @@ void SimpleDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
     }
 }
 
-
 void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
     Ptr<Packet> packet;
     Address from;
@@ -361,6 +362,11 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
                 NS_LOG_UNCOND("Bundle reached destination");
                 Time jitter = GetJitter();
                 Simulator::Schedule(jitter, &SimpleDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
+                Report::bundleReachedDestination++;
+                Report::totalHopReachedDestination += bundle.hop;
+                Report::totalHop++;
+                Report::bundleFowardCount++;
+                Report::totalDelay += Simulator::Now() - MicroSeconds(bundle.creationTime);
                 continue;
             }
 
@@ -370,6 +376,9 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
                 continue; // there are no place for this bundle
             }
             NS_LOG_UNCOND("Bundle added to buffer");
+
+            Report::totalHop++;
+            Report::bundleFowardCount++;
             m_buffer.push_back(bundle);
             FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
             // RemoveOldBundle();
@@ -408,7 +417,6 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
 
 }
 
-
 void SimpleDtnApp::OnNeighborDiscovery(Ipv4Address neighborIp) {
 
 }
@@ -436,6 +444,8 @@ void SimpleDtnApp::GenerateBundle() {
     b.destination = dest;
 
     m_buffer.push_back(b);
+    Report::bundleCount++;
+
     RemoveOldBundle();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
@@ -520,7 +530,8 @@ void ScheduleTSPMobility(
     Ptr<ConstantVelocityMobilityModel> mobility,
     std::string nodeId // for logging
 ) {
-    Simulator::Schedule(Time(0), &ScheduleNextWaypoint, points, order, speed, order.size() - 1, mobility, nodeId);
+    uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
+    Simulator::Schedule(Time(0), &ScheduleNextWaypoint, points, order, speed, startIndex, mobility, nodeId);
 }
 
 // ===========================================================================
@@ -528,6 +539,9 @@ void ScheduleTSPMobility(
 // ===========================================================================
 int main(int argc, char* argv[])
 {
+    //! IMPORTANT 
+    std::string SIMULATION_NAME = "SIRA";
+    std::string SIMULATION_RUN = "1";
     // set random seed so every run is the same
     srand(1337);
     SeedManager::SetSeed(1337);
@@ -538,6 +552,8 @@ int main(int argc, char* argv[])
     // parse cmd line args
     CommandLine cmd;
     cmd.AddValue("commRange", "Communication range", config.commRange);
+    cmd.AddValue("name", "Simulation Name", SIMULATION_NAME);
+    cmd.AddValue("run", "Simulation Run", SIMULATION_RUN);
     cmd.Parse(argc, argv);
 
     LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
@@ -546,7 +562,7 @@ int main(int argc, char* argv[])
     NodeContainer GroundNodes;
     GroundNodes.Create(config.nGrounds);
     NodeContainer ferryNode;
-    ferryNode.Create(1);
+    ferryNode.Create(config.nFerrys);
     allNodes.Add(GroundNodes);
     allNodes.Add(ferryNode);
 
@@ -595,21 +611,7 @@ int main(int argc, char* argv[])
 
     std::vector<std::vector<uint32_t>> groundNodeClusters = KMeans(points, config.nFerrys);
 
-    for (uint32_t i = 0; i < config.nGrounds; i++) {
-        PointToPointHelper pointToPoint;
-        pointToPoint.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-        pointToPoint.SetChannelAttribute("Delay", StringValue("2ms"));
-        uint32_t index = order[i];
-        uint32_t nextIndex = order[(i + 1) % config.nGrounds];
-        NodeContainer nc;
-        nc.Add(GroundNodes.Get(index));
-        nc.Add(GroundNodes.Get(nextIndex));
-        pointToPoint.Install(nc);
-    }
-
     MobilityHelper mobility;
-    // mobility.SetPositionAllocator("ns3::ListPositionAllocator");
-    // mobility.Install(GroundNodes);
 
     Ptr<ListPositionAllocator> ground_lpa = CreateObject<ListPositionAllocator>();
     for (uint32_t i = 0; i < config.nGrounds; i++) {
@@ -633,9 +635,10 @@ int main(int argc, char* argv[])
     ferryMobility.Install(ferryNode);
 
     // Kích hoạt vận tốc cho Ferry (Nếu không nó sẽ đứng im)
-    Ptr<ConstantVelocityMobilityModel> cvmm = ferryNode.Get(0)->GetObject<ConstantVelocityMobilityModel>();
-    ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm, "f" + std::to_string(ferryNode.Get(0)->GetId()));
-
+    for (uint32_t i = 0; i < config.nFerrys; i++) {
+        Ptr<ConstantVelocityMobilityModel> cvmm = ferryNode.Get(i)->GetObject<ConstantVelocityMobilityModel>();
+        ScheduleTSPMobility(points, order, config.ferrySpeed, config.ferryHeight, cvmm, "f" + std::to_string(ferryNode.Get(i)->GetId()));
+    }
     // ==========================================================
     // INTERNET STACK & APP
     // ==========================================================
@@ -654,65 +657,42 @@ int main(int argc, char* argv[])
     }
 
     // Cài App cho Ground Nodes
-    for (uint32_t n = 0; n < config.nGrounds; n++)
-    {
+    for (uint32_t n = 0; n < config.nGrounds; n++) {
         Ptr<Socket> socket = Socket::CreateSocket(GroundNodes.Get(n), tid);
         Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
-        app->Setup(socket, i.GetAddress(n), config.groundBufferSize, NODE_TYPE_GROUND);
+        Ipv4Address address = i.GetAddress(n);
+        app->Setup(socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
         GroundNodes.Get(n)->AddApplication(app);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
-        if (n == 0) // TODO temp 
-            app->EnableBundleGeneration(10.0);
-        nodeType[i.GetAddress(n).Get()] = NODE_TYPE_GROUND;
-        nodeId[i.GetAddress(n).Get()] = "g" + std::to_string(n);
+        app->EnableBundleGeneration(10.0);
+        nodeType[address.Get()] = NODE_TYPE_GROUND;
+        nodeId[address.Get()] = "g" + std::to_string(n);
     }
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
-    {
-        Ptr<Socket> socket = Socket::CreateSocket(ferryNode.Get(0), tid);
+    for (uint32_t n = 0; n < config.nFerrys; n++) {
+        Ptr<Socket> socket = Socket::CreateSocket(ferryNode.Get(n), tid);
         Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
-        app->Setup(socket, i.GetAddress(config.nGrounds), config.ferryBufferSize, NODE_TYPE_FERRY); // Buffer lớn cho Ferry
-        ferryNode.Get(0)->AddApplication(app);
+        Ipv4Address address = i.GetAddress(n + config.nGrounds);
+        app->Setup(socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);
+        ferryNode.Get(n)->AddApplication(app);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
-        nodeType[i.GetAddress(config.nGrounds).Get()] = NODE_TYPE_FERRY;
-        nodeId[i.GetAddress(config.nGrounds).Get()] = "f" + std::to_string(ferryNode.Get(0)->GetId());
-
+        nodeType[address.Get()] = NODE_TYPE_FERRY;
+        nodeId[address.Get()] = "f" + std::to_string(ferryNode.Get(n)->GetId());
     }
 
-    // Animation
-    AnimationInterface anim("trace/dtn-adhoc-anim.xml");
-    // uint32_t bgImg = anim.AddResource("trace/flood.png");
-    double bgScaleX = config.areaWidth / 1000.0;
-    double bgScaleY = config.areaWidth / 964.0;
-    if (config.enable_background)
-        anim.SetBackgroundImage("/home/minh/ns-allinone-3.30.1/ns-3.30.1/trace/flood2.png", 0, 0, bgScaleX, bgScaleY, 0.5);
 
-    // anim.SetMaxPktsPerTraceFile(500000);
-    for (uint32_t n = 0; n < config.nGrounds; n++) {
-        // anim.UpdateNodeColor(GroundNodes.Get(n)->GetId(), 0, 255, 0);
-        anim.UpdateNodeSize(GroundNodes.Get(n)->GetId(), 80, 80);
-    }
-    { // set color for each cluster
-        int colorIndex = 0;
-        for (auto& cluster : groundNodeClusters) {
-            for (auto& node : cluster) {
-
-                anim.UpdateNodeColor(GroundNodes.Get(node)->GetId(), colors[colorIndex].r, colors[colorIndex].g, colors[colorIndex].b);
-                anim.UpdateNodeDescription(GroundNodes.Get(node)->GetId(), std::to_string(colorIndex));
-            }
-            colorIndex++;
-        }
-    }
-    anim.UpdateNodeColor(ferryNode.Get(0)->GetId(), 255, 0, 0);
-    anim.UpdateNodeSize(ferryNode.Get(0)->GetId(), 60, 60);
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
 
     FerryVisualizer::SetUp();
     Simulator::Stop(Seconds(config.simTime)); // Đã set trong app
     Simulator::Run();
     Simulator::Destroy();
     FerryVisualizer::CleanUp();
+    Report::Export();
 
     return 0;
 }
