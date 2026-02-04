@@ -285,6 +285,7 @@ void SimpleDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
 
 void SimpleDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
     Time jitter = GetJitter();
+    RemoveExpiredBundles();
 
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false && bundle.destination == groundIp) {
@@ -301,6 +302,7 @@ void SimpleDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
 
 void SimpleDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
     Time jitter = GetJitter();
+    RemoveExpiredBundles();
 
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false) { // TODO implement multiple ferry with multiple ground group

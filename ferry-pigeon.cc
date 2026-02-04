@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Loggings //! IMPORTANT 
     // ==========================================================
-    std::string SIMULATION_NAME = "SIRA";
+    std::string SIMULATION_NAME = "PIGEON";
     std::string SIMULATION_RUN = "1";
 
     // parse cmd line args
@@ -110,21 +110,18 @@ int main(int argc, char* argv[]) {
 
     double areaPadding = 200; // padding to avoid node on edge of the map
     double rangePadding = config.commRange + 30; // padding tp avoid node near communication range
-    std::vector<point2D> points =
-        PoissonDisk_RandomSample(config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);
+    groundNodePos = PoissonDisk_RandomSample(
+        config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);
 
-    std::vector<uint32_t> order = TSPClassicGA(points);
-    order = TSPTwoOptOptimize(points, order);
-
-    std::vector<std::vector<uint32_t>> groundNodeClusters = KMeans(points, config.nFerrys);
+    std::vector<std::vector<uint32_t>> groundNodeClusters = KMeans(groundNodePos, config.nFerrys);
 
     MobilityHelper mobility;
 
     Ptr<ListPositionAllocator> ground_lpa = CreateObject<ListPositionAllocator>();
     for (uint32_t i = 0; i < config.nGrounds; i++) {
-        points[i].x += areaPadding / 2;
-        points[i].y += areaPadding / 2;
-        ground_lpa->Add(Vector(points[i].x, points[i].y, 0));
+        groundNodePos[i].x += areaPadding / 2;
+        groundNodePos[i].y += areaPadding / 2;
+        ground_lpa->Add(Vector(groundNodePos[i].x, groundNodePos[i].y, 0));
     }
     mobility.SetPositionAllocator(ground_lpa);
 
@@ -166,10 +163,19 @@ int main(int argc, char* argv[]) {
         app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
-        app->EnableBundleGeneration(10.0);
+        app->EnableBundleGeneration(config.bundleGenRate);
 
         nodeType[address.Get()] = NODE_TYPE_GROUND;
         nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
+    }
+
+    // Cài group cho ground node
+    int group = 0;
+    for (auto cluster : groundNodeClusters) {
+        for (auto index : cluster) {
+            nodeGroup[groundNodeIps[index].Get()] = group;
+        }
+        group++;
     }
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
@@ -185,9 +191,19 @@ int main(int argc, char* argv[]) {
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
 
+        app->SetGroup(n); // set group id for ferry
+
         nodeType[address.Get()] = NODE_TYPE_FERRY;
         nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
+        nodeGroup[address.Get()] = n;
 
+        // ===== Set up base TSP Mobility ===== 
+        std::vector<point2D> points;
+        std::vector<uint32_t> cluster = groundNodeClusters[n];
+        for (auto index : cluster)
+            points.push_back(groundNodePos[index]);
+        std::vector<uint32_t> order = TSPClassicGA(points);
+        order = TSPTwoOptOptimize(points, order);
         app->InitializeTSPMobility(points, order);
     }
 

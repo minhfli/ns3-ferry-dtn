@@ -8,7 +8,7 @@ using namespace ns3;
 
 struct Config {
     // sim config
-    double simTime = 500.0; // seconds
+    double simTime = 5000.0; // seconds
     double commRange = 120.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 2000; // meters
@@ -27,6 +27,7 @@ struct Config {
     uint32_t groundBufferSize = 5; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
+    double bundleGenRate = 5.0; // 1 bundle every ... seconds
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
 
@@ -45,6 +46,8 @@ struct SimulationVariablePointer {
     uint32_t nFerrys = 0;
     NodeContainer* groundNodes;
     NodeContainer* ferryNodes;
+
+
 } simVar;
 
 #endif // CONFIG

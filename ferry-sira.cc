@@ -119,8 +119,6 @@ int main(int argc, char* argv[]) {
     std::vector<uint32_t> order = TSPClassicGA(points);
     order = TSPTwoOptOptimize(points, order);
 
-    std::vector<std::vector<uint32_t>> groundNodeClusters = KMeans(points, config.nFerrys);
-
     MobilityHelper mobility;
 
     Ptr<ListPositionAllocator> ground_lpa = CreateObject<ListPositionAllocator>();
@@ -169,10 +167,11 @@ int main(int argc, char* argv[]) {
         app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
-        app->EnableBundleGeneration(10.0);
+        app->EnableBundleGeneration(config.bundleGenRate);
 
         nodeType[address.Get()] = NODE_TYPE_GROUND;
         nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
+        nodeGroup[address.Get()] = 0;
     }
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
@@ -190,6 +189,7 @@ int main(int argc, char* argv[]) {
 
         nodeType[address.Get()] = NODE_TYPE_FERRY;
         nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
+        nodeGroup[address.Get()] = 0;
 
         app->InitializeTSPMobility(points, order);
     }

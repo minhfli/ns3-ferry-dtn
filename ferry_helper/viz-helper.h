@@ -16,6 +16,7 @@
 #include <string>
 #include <ostream>
 #include <vector>
+#include <unordered_map>
 
 using namespace ns3;
 
@@ -31,7 +32,7 @@ namespace FerryVisualizer {
     void logBeacon(std::string node);
 
     void logRoute(const std::string& node, const std::vector<point2D> waypoints);
-    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex);
+    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex, bool loop = true);
     /**
      * @param list list of bundle
      */
@@ -70,13 +71,23 @@ namespace FerryVisualizer {
 
 
     void logDeclare() {
+        std::unordered_map<std::string, uint32_t> id_to_group;
+        std::unordered_map<std::string, uint32_t> id_to_ip;
+        for (const auto& [key, value] : nodeId) {
+            id_to_ip[value] = key;
+            id_to_group[value] = (uint32_t)nodeGroup[key];
+        }
+
         file << "area=" << config.areaWidth << "|" << config.areaWidth << std::endl;
         for (uint32_t i = 0; i < simVar.nGrounds; i++) {
-            file << "node=g" << i
+            std::string nodeId = "g" + std::to_string(simVar.groundNodes->Get(i)->GetId());
+            color nodeColor = colors[5 + id_to_group[nodeId]];
+            file << "node=" << nodeId
                 << " type=ground"
-                << " group=0"
-                << " color=255|0|0"
+                << " group=" << id_to_group[nodeId]
+                << " color=" << nodeColor.r << "|" << nodeColor.g << "|" << nodeColor.b
                 << " buffer=" << config.groundBufferSize
+                << " ip=" << id_to_ip[nodeId]
                 << std::endl;
         }
         // ferry to ground communication range
@@ -84,11 +95,14 @@ namespace FerryVisualizer {
         fg_commrange = std::sqrt(fg_commrange);
 
         for (uint32_t i = 0; i < simVar.nFerrys; i++) {
-            file << "node=f" << simVar.ferryNodes->Get(i)->GetId()
+            std::string nodeId = "f" + std::to_string(simVar.ferryNodes->Get(i)->GetId());
+            color nodeColor = colors[0];
+            file << "node=" << nodeId
                 << " type=ferry"
-                << " group=0"
-                << " color=0|0|255"
+                << " group=" << id_to_group[nodeId]
+                << " color=" << nodeColor.r << "|" << nodeColor.g << "|" << nodeColor.b
                 << " buffer=" << config.ferryBufferSize
+                << " ip=" << id_to_ip[nodeId]
                 << " range=" << config.commRange << "|" << fg_commrange
                 << std::endl;
         }
@@ -139,12 +153,19 @@ namespace FerryVisualizer {
         file << std::endl;
     }
 
-    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex) {
-        int n = order.size();
+    std::vector<point2D> tspRouteHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& order, uint32_t startIndex, bool loop) {
+        if (loop) {
+            int n = order.size();
+            std::vector<point2D> route;
+            for (int i = 0; i < n; i++) {
+                route.push_back(points[order[startIndex]]);
+                startIndex = (startIndex + 1) % n;
+            }
+            return route;
+        }
         std::vector<point2D> route;
-        for (int i = 0; i < n; i++) {
-            route.push_back(points[order[startIndex]]);
-            startIndex = (startIndex + 1) % n;
+        for (uint32_t i = startIndex; i < order.size(); i++) {
+            route.push_back(points[order[i]]);
         }
         return route;
     }

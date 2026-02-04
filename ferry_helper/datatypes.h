@@ -4,6 +4,9 @@
 struct point2D {
     double x;
     double y;
+    double length() {
+        return std::sqrt(x * x + y * y);
+    }
 };
 
 inline double dist(const point2D& a, const point2D& b) {
@@ -53,7 +56,7 @@ color ghostwhite = { 248, 248, 255 };
 color honeydew = { 240, 255, 240 };
 
 std::vector<color> colors = {
-    white, black, red, green, blue, yellow, purple, orange, gray, pink, brown, teal, indigo, lime, olive, navy, silver, maroon, aqua, fuchsia, crimson, gold, tomato, violet, cyan, magenta, cornsilk, ghostwhite, honeydew
+ red, green, blue, yellow, purple, orange, gray, pink, brown, teal, indigo, lime, olive, navy, silver, maroon, aqua, fuchsia, crimson, gold, tomato, violet, cyan, magenta, cornsilk, ghostwhite, honeydew
 };
 
 #endif // DATA_HELPER_H

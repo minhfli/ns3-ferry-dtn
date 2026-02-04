@@ -30,8 +30,7 @@
 // 2. APP & BUNDLE STORAGE (Có cập nhật Jitter)
 // ===========================================================================
 
-class PigeonDtnApp : public Application
-{
+class PigeonDtnApp : public Application {
     public:
     PigeonDtnApp();
     virtual ~PigeonDtnApp();
@@ -40,6 +39,9 @@ class PigeonDtnApp : public Application
     void Setup(Ptr<Node>node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType);
     void EnableBundleGeneration(double rate, bool inversed = true);
     void InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order);
+    void SetGroup(uint8_t groupId) {
+        m_groupId = groupId;
+    }
 
     private:
     static Time GetJitter();
@@ -74,20 +76,21 @@ class PigeonDtnApp : public Application
 
     void BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp);
 
+    std::vector<std::vector<double>> GetDeadlines();
+
     // Mobility scheduling functions for ferry nodes
-    void ScheduleNextWaypoint(const std::vector<point2D>& points,
-        const std::vector<uint32_t>& order,
-        double speed,
-        uint32_t index,
-        Ptr<ConstantVelocityMobilityModel> mobility);
+    void ScheduleNextWaypoint();
+    void ScheduleFerryWaypoint();
+    void SchedulePigeonWaypoint();
+
 
     Ptr<Node> m_node;
-
     Ptr<Socket> m_socket;
     Ipv4Address m_myIp;
     uint16_t m_port;
     uint8_t m_nodeType; // 0: Ground, 1: Ferry
-    // EventId m_helloEvent;
+    uint8_t m_mode; // 0: Default/ground, 1: Ferry, 2: Pigeon
+    uint8_t m_groupId; // for clustering
 
     double m_bundleGenRate;
 
@@ -95,6 +98,15 @@ class PigeonDtnApp : public Application
     uint32_t m_maxBufferSize;
     uint32_t m_bundleIdCounter;
 
+    std::vector<point2D> m_ferryPoints;
+    std::vector<uint32_t> m_ferryOrder;
+    std::uint32_t m_ferryNextIndex;
+
+    // std::vector<point2D> m_pigeonPoints; // this is the same as ground node list
+    std::vector<uint32_t> m_pigeonOrder;
+    std::uint32_t m_pigeonNextIndex;
+
+    Ptr<ConstantVelocityMobilityModel> m_mobility;
 
 };
 
@@ -114,23 +126,40 @@ PigeonDtnApp::PigeonDtnApp()
 
 PigeonDtnApp::~PigeonDtnApp() {}
 
-void PigeonDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType)
-{
+void PigeonDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType) {
     m_node = node;
     m_socket = socket;
     m_myIp = myIp;
     m_maxBufferSize = bufferSize;
     m_nodeType = nodeType;
+    m_mode = nodeType;
     m_bundleGenRate = 0.0;
+
+    m_mobility = m_node->GetObject<ConstantVelocityMobilityModel>();
 
     m_buffer.clear();
     m_buffer.reserve(m_maxBufferSize + 1);
 }
 
 void PigeonDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order) {
-    uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
+    // uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
     auto cvmm = m_node->GetObject<ConstantVelocityMobilityModel>();
-    Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this, points, order, config.ferrySpeed, startIndex, cvmm);
+    m_ferryNextIndex = 0;
+    Vector3D currentPos = cvmm->GetPosition();
+    for (uint32_t i = 1; i < order.size(); i++) {
+        point2D relative = { points[order[i]].x - currentPos.x,
+                             points[order[i]].y - currentPos.y };
+        point2D startIdRelative = { points[m_ferryNextIndex].x - currentPos.x,
+                                    points[m_ferryNextIndex].y - currentPos.y };
+        double dist1 = relative.x * relative.x + relative.y * relative.y;
+        double dist2 = startIdRelative.x * startIdRelative.x + startIdRelative.y * startIdRelative.y;
+        if (dist1 < dist2) {
+            m_ferryNextIndex = i;
+        }
+    }
+    m_ferryPoints = points;
+    m_ferryOrder = order;
+    Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this);
 }
 
 /**
@@ -226,7 +255,7 @@ void PigeonDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
     header.SetNodeIP(m_myIp);
 
     FerryRouteHeader fRouteHeader; // TODO handling waypoints
-    fRouteHeader.SetGroup(0);
+    fRouteHeader.SetGroup(m_groupId);
     fRouteHeader.SetCount(0);
 
     Ptr<Packet> packet = Create<Packet>(0);
@@ -285,6 +314,7 @@ void PigeonDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
 
 void PigeonDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
     Time jitter = GetJitter();
+    RemoveExpiredBundles();
 
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false && bundle.destination == groundIp) {
@@ -292,7 +322,6 @@ void PigeonDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
             return;
         }
     }
-    RemoveExpiredBundles();
     if (m_buffer.size() >= m_maxBufferSize) {
         return; // there are no buffer left to receive additional bundle
     }
@@ -301,9 +330,14 @@ void PigeonDtnApp::ScheduleAcceptTransfer(Ipv4Address groundIp) {
 
 void PigeonDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
     Time jitter = GetJitter();
+    RemoveExpiredBundles();
 
+    if (m_groupId != nodeGroup[ferryIp.Get()]) {
+        // TODO send bundle that belongs to ground node with ferry group id
+        return; // not in the same group
+    }
     for (auto& bundle : m_buffer) {
-        if (bundle.flag_waitingAck == false) { // TODO implement multiple ferry with multiple ground group
+        if (bundle.flag_waitingAck == false) {
             Simulator::Schedule(jitter, &PigeonDtnApp::SendBundle, this, bundle, ferryIp);
             return;
         }
@@ -488,36 +522,152 @@ void PigeonDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
     }
 }
 
-void PigeonDtnApp::ScheduleNextWaypoint(const std::vector<point2D>& points,
-    const std::vector<uint32_t>& order,
-    double speed,
-    uint32_t index, // curent index
-    Ptr<ConstantVelocityMobilityModel> mobility
-) {
 
-    uint32_t nextIndex = (index + 1) % order.size();
+std::vector<std::vector<double>> PigeonDtnApp::GetDeadlines() {
+    RemoveExpiredBundles();
+    std::vector<std::vector<double>> deadlines;
+    deadlines.resize(config.nGrounds);
+    for (auto bundle : m_buffer) {
+        uint32_t node = rawNodeId(bundle.destination.Get());
+        double dl = bundle.creationTime + config.bundleTTL; //microsec
+        dl /= 1000000.0;
+        deadlines[node].push_back(dl);
+    }
+    return deadlines;
+}
 
-    Vector3D currentPos = mobility->GetPosition();
 
-
-    point2D relative = { points[order[nextIndex]].x - currentPos.x,
-                         points[order[nextIndex]].y - currentPos.y };
-
-    double distance = std::sqrt(relative.x * relative.x + relative.y * relative.y);
-    double time = distance / speed;
-
-    Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this, points, order, speed, nextIndex, mobility);
-
-    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], FerryVisualizer::tspRouteHelper(points, order, nextIndex));
-
-    point2D velocity;
-    velocity.x = relative.x / distance * speed;
-    velocity.y = relative.y / distance * speed;
-
-    mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
+void PigeonDtnApp::ScheduleNextWaypoint() {
+    if (m_mode == MODE_FERRY) {
+        ScheduleFerryWaypoint();
+    }
+    else if (m_mode == MODE_PIGEON) {
+        SchedulePigeonWaypoint();
+    }
+    else {
+        m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
+    }
 
 }
 
+void PigeonDtnApp::ScheduleFerryWaypoint() {
+    Vector3D currentPos = m_mobility->GetPosition();
+
+    point2D relative = { m_ferryPoints[m_ferryOrder[m_ferryNextIndex]].x - currentPos.x,
+                         m_ferryPoints[m_ferryOrder[m_ferryNextIndex]].y - currentPos.y };
+
+    double distance = relative.length();
+    double time = distance / config.ferrySpeed;
+
+    double currentTime = Simulator::Now().GetSeconds();
+    auto deadlines = GetDeadlines();
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+
+    std::vector<uint32_t> pigeonRoute;
+    pigeonRoute = TSPDeadlineBasedGA(
+        groundNodePos,
+        deadlines,
+        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
+        currentTime + time,
+        config.ferrySpeed
+    );
+    pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
+        groundNodePos,
+        deadlines,
+        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
+        currentTime + time,
+        config.ferrySpeed,
+        pigeonRoute
+    );
+
+    uint32_t cost = ComputeDeadlineCost(
+        pigeonRoute,
+        groundNodePos,
+        deadlines,
+        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
+        currentTime + time,
+        config.ferrySpeed
+    );
+
+    if (cost < m_buffer.size()) { // cannot sastify all deadlines -> switch to pigeon mode
+        pigeonRoute = TSPDeadlineBasedGA(
+            groundNodePos,
+            deadlines,
+            { currentPos.x, currentPos.y }, // starting pos
+            currentTime,
+            config.ferrySpeed
+        );
+        pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
+            groundNodePos,
+            deadlines,
+            { currentPos.x, currentPos.y }, // starting pos
+            currentTime,
+            config.ferrySpeed,
+            pigeonRoute
+        );
+        m_mode = MODE_PIGEON;
+        m_pigeonOrder = pigeonRoute;
+        m_pigeonNextIndex = 0;
+        SchedulePigeonWaypoint();
+        NS_LOG_UNCOND("Switch to pigeon mode");
+        return;
+    }
+    else {
+        FerryVisualizer::logRoute(nodeId[m_myIp.Get()], FerryVisualizer::tspRouteHelper(m_ferryPoints, m_ferryOrder, m_ferryNextIndex));
+
+        m_ferryNextIndex = (m_ferryNextIndex + 1) % m_ferryOrder.size();
+
+        if (time < 0.1) {
+            // handle special case: when there only one node
+            // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
+            Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+            m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
+            return;
+        }
+
+
+        Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+
+        point2D velocity;
+        velocity.x = relative.x / distance * config.ferrySpeed;
+        velocity.y = relative.y / distance * config.ferrySpeed;
+
+        m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
+    }
+}
+
+void PigeonDtnApp::SchedulePigeonWaypoint() {
+    Vector3D currentPos = m_mobility->GetPosition();
+    if (m_pigeonNextIndex >= m_pigeonOrder.size()) {
+        m_mode = MODE_FERRY;
+        ScheduleFerryWaypoint();
+        NS_LOG_UNCOND("Switch to ferry mode");
+        return;
+    }
+    point2D relative = { groundNodePos[m_pigeonOrder[m_pigeonNextIndex]].x - currentPos.x,
+                         groundNodePos[m_pigeonOrder[m_pigeonNextIndex]].y - currentPos.y };
+
+    double distance = relative.length();
+    double time = distance / config.ferrySpeed;
+    FerryVisualizer::logRoute(
+        nodeId[m_myIp.Get()],
+        FerryVisualizer::tspRouteHelper(groundNodePos, m_pigeonOrder, m_pigeonNextIndex, false));
+
+    m_pigeonNextIndex++;
+
+    if (time < 0.1) {
+        Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
+        return;
+    }
+    Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+
+    point2D velocity;
+    velocity.x = relative.x / distance * config.ferrySpeed;
+    velocity.y = relative.y / distance * config.ferrySpeed;
+
+    m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
+}
 
 
 #endif
