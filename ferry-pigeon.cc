@@ -46,18 +46,13 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Loggings //! IMPORTANT 
     // ==========================================================
-    std::string SIMULATION_NAME = "PIGEON";
-    std::string SIMULATION_RUN = "1";
+
 
     // parse cmd line args
-    CommandLine cmd;
-    cmd.AddValue("commRange", "Communication range", config.commRange);
-    cmd.AddValue("name", "Simulation Name", SIMULATION_NAME);
-    cmd.AddValue("run", "Simulation Run", SIMULATION_RUN);
-    cmd.Parse(argc, argv);
+    ParseConfig(argc, argv);
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
 
@@ -108,7 +103,7 @@ int main(int argc, char* argv[]) {
     // MOBILITY
     // ==========================================================
 
-    double areaPadding = 200; // padding to avoid node on edge of the map
+    double areaPadding = 100; // padding to avoid node on edge of the map
     double rangePadding = config.commRange + 30; // padding tp avoid node near communication range
     groundNodePos = PoissonDisk_RandomSample(
         config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);
@@ -151,32 +146,33 @@ int main(int argc, char* argv[]) {
 
     TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
 
-    // Cài App cho Ground Nodes
-    for (uint32_t n = 0; n < config.nGrounds; n++) {
-        Ptr<Node> gNode = GroundNodes.Get(n);
-        Ptr<Socket> socket = Socket::CreateSocket(gNode, tid);
-        Ptr<PigeonDtnApp> app = CreateObject<PigeonDtnApp>();
-        Ipv4Address address = i.GetAddress(gNode->GetId());
-        groundNodeIps.push_back(address);
-
-        gNode->AddApplication(app);
-        app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
-        app->SetStartTime(Seconds(1.0));
-        app->SetStopTime(Seconds(config.simTime));
-        app->EnableBundleGeneration(config.bundleGenRate);
-
-        nodeType[address.Get()] = NODE_TYPE_GROUND;
-        nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
-    }
-
-    // Cài group cho ground node
+    // Cài App & group cho Ground Nodes
     int group = 0;
     for (auto cluster : groundNodeClusters) {
-        for (auto index : cluster) {
-            nodeGroup[groundNodeIps[index].Get()] = group;
+        for (auto n : cluster) {
+
+            Ptr<Node> gNode = GroundNodes.Get(n);
+            Ptr<Socket> socket = Socket::CreateSocket(gNode, tid);
+            Ptr<PigeonDtnApp> app = CreateObject<PigeonDtnApp>();
+            Ipv4Address address = i.GetAddress(gNode->GetId());
+
+            groundNodeIps.push_back(address);
+            nodeGroup[address.Get()] = group;
+
+            gNode->AddApplication(app);
+            app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
+            app->SetStartTime(Seconds(1.0));
+            app->SetStopTime(Seconds(config.simTime));
+            app->EnableBundleGeneration(config.bundleGenRate);
+            app->SetGroup(group);
+
+            nodeType[address.Get()] = NODE_TYPE_GROUND;
+            nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
         }
         group++;
     }
+
+
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
     for (uint32_t n = 0; n < config.nFerrys; n++) {

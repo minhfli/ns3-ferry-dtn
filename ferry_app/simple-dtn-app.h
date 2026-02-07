@@ -69,6 +69,7 @@ class SimpleDtnApp : public Application
     // Bundle Logic
     void GenerateBundle();
     void RemoveExpiredBundles(); // remove old bundle that over TTL
+    void RemoveImpossibleBundles(); // remove bundles that event if a ferry fly straight from current position to the target, it still run out of TTL
     void RemoveOldBundle(); // remove oldest bundles to keep buffer size < max buffer size
     void RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp); // remove transmitted bundle
 
@@ -95,6 +96,8 @@ class SimpleDtnApp : public Application
     uint32_t m_maxBufferSize;
     uint32_t m_bundleIdCounter;
 
+
+    Ptr<MobilityModel> m_mobility;
 
 };
 
@@ -125,6 +128,8 @@ void SimpleDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, u
 
     m_buffer.clear();
     m_buffer.reserve(m_maxBufferSize + 1);
+
+    m_mobility = m_node->GetObject<MobilityModel>();
 }
 
 void SimpleDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order) {
@@ -154,7 +159,7 @@ void SimpleDtnApp::StartApplication(void)
 {
     if (m_socket->Bind(InetSocketAddress(Ipv4Address::GetAny(), m_port)) == -1)
     {
-        NS_LOG_UNCOND("Bind failed for node " << m_myIp);
+        NS_LOG_UNCOND("Bind failed for node " << nodeId[m_myIp.Get()]);
         return;
     }
     m_socket->SetRecvCallback(MakeCallback(&SimpleDtnApp::ReceivePacket, this));
@@ -162,15 +167,15 @@ void SimpleDtnApp::StartApplication(void)
     // OCB hỗ trợ broadcast rất tốt qua IP broadcast
     m_socket->SetAllowBroadcast(true);
 
-    NS_LOG_UNCOND("Node " << m_myIp << " started listening on port " << m_port);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " started listening on port " << m_port);
 
     if (m_nodeType == 0)
     {
-        NS_LOG_UNCOND("Node " << m_myIp << " is a GROUND node.");
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a GROUND node.");
     }
     else
     {
-        NS_LOG_UNCOND("Node " << m_myIp << " is a FERRY node.");
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a FERRY node.");
 
 
         Simulator::Schedule(GetJitter(), &SimpleDtnApp::Beacon, this);
@@ -186,7 +191,7 @@ Time SimpleDtnApp::GetJitter() {
 }
 
 void SimpleDtnApp::Beacon() {
-    // NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << m_myIp << ": Sending HELLO (OCB)");
+    // NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << nodeId[m_myIp.Get()] << ": Sending HELLO (OCB)");
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_BEACON);
     header.SetNodeIP(m_myIp);
@@ -332,7 +337,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::FERRY_BEACON) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": BEACON from Ferry " << topHeader.GetNodeIP());
             Time jitter = GetJitter();
             if (m_nodeType == NODE_TYPE_GROUND) {
@@ -343,7 +348,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::GROUND_HELLO) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": HELLO from Ground node " << topHeader.GetNodeIP()
             );
 
@@ -401,7 +406,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
             packet->RemoveHeader(bundleAckHeader);
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": BUNDLE ACK from " << topHeader.GetNodeIP());
             RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
             FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
@@ -417,7 +422,7 @@ void SimpleDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::FERRY_ACCEPT_TRANSFER) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": ACCEPT TRANSFER from ferry node " << topHeader.GetNodeIP()
             );
             ScheduleTransfer(topHeader.GetNodeIP());
@@ -447,7 +452,7 @@ void SimpleDtnApp::GenerateBundle() {
     RemoveOldBundle();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
-    NS_LOG_UNCOND("Node " << m_myIp << ": CREATED Bundle " << b.id << " to " << b.destination);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << b.destination);
 
     // generate based on poisson distribution
     double jitter = m_rand->GetValue(0.0, 1.0);
@@ -459,15 +464,38 @@ void SimpleDtnApp::RemoveExpiredBundles() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
     while (m_buffer.size() > 0 && m_buffer[0].creationTime + config.bundleTTL < currentTime) {
-        NS_LOG_UNCOND("Node " << m_myIp << ": EXPIRED Bundle " << m_buffer[0].id);
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << m_buffer[0].id);
         m_buffer.erase(m_buffer.begin());
+    }
+    RemoveImpossibleBundles();
+}
+void SimpleDtnApp::RemoveImpossibleBundles() {
+    Vector3D currentPos = m_mobility->GetPosition();
+    bool removed_bundle = true;
+    while (removed_bundle) {
+        removed_bundle = false;
+        for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
+            point2D target = { groundNodePos[it->destination.Get()].x, groundNodePos[it->destination.Get()].y };
+            point2D relative = { target.x - currentPos.x, target.y - currentPos.y };
+            double distance = relative.length() - config.commRange;
+            if (m_nodeType == NODE_TYPE_GROUND)
+                distance -= config.commRange;
+            Time expectedArrival = Simulator::Now() + Seconds(distance / config.ferrySpeed);
+            Time bundleExpirationTime = MicroSeconds(it->creationTime + config.bundleTTL);
+            if (expectedArrival > bundleExpirationTime) {
+                NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << it->id);
+                m_buffer.erase(it);
+                removed_bundle = true;
+                break;
+            }
+        }
     }
 }
 
 void SimpleDtnApp::RemoveOldBundle() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     while (m_buffer.size() > m_maxBufferSize) {
-        NS_LOG_UNCOND("Node " << m_myIp << ": DROPPED Bundle " << m_buffer[0].id);
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": DROPPED Bundle " << m_buffer[0].id);
         m_buffer.erase(m_buffer.begin());
     }
 }

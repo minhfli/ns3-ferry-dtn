@@ -49,18 +49,12 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Loggings //! IMPORTANT 
     // ==========================================================
-    std::string SIMULATION_NAME = "SIRA";
-    std::string SIMULATION_RUN = "1";
 
     // parse cmd line args
-    CommandLine cmd;
-    cmd.AddValue("commRange", "Communication range", config.commRange);
-    cmd.AddValue("name", "Simulation Name", SIMULATION_NAME);
-    cmd.AddValue("run", "Simulation Run", SIMULATION_RUN);
-    cmd.Parse(argc, argv);
+    ParseConfig(argc, argv);
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + SIMULATION_NAME + "_" + SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
 
@@ -111,7 +105,7 @@ int main(int argc, char* argv[]) {
     // MOBILITY
     // ==========================================================
 
-    double areaPadding = 200; // padding to avoid node on edge of the map
+    double areaPadding = 100; // padding to avoid node on edge of the map
     double rangePadding = config.commRange + 30; // padding tp avoid node near communication range
     std::vector<point2D> points =
         PoissonDisk_RandomSample(config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);

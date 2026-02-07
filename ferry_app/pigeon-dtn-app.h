@@ -71,6 +71,7 @@ class PigeonDtnApp : public Application {
     // Bundle Logic
     void GenerateBundle();
     void RemoveExpiredBundles(); // remove old bundle that over TTL
+    void RemoveImpossibleBundles(); // remove bundles that event if a ferry fly straight from current position to the target, it still run out of TTL
     void RemoveOldBundle(); // remove oldest bundles to keep buffer size < max buffer size
     void RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp); // remove transmitted bundle
 
@@ -79,10 +80,11 @@ class PigeonDtnApp : public Application {
     std::vector<std::vector<double>> GetDeadlines();
 
     // Mobility scheduling functions for ferry nodes
+    EventId m_mobilityScheduleEvent;
     void ScheduleNextWaypoint();
     void ScheduleFerryWaypoint();
     void SchedulePigeonWaypoint();
-
+    void SchedulePigeonOnBufferFull();
 
     Ptr<Node> m_node;
     Ptr<Socket> m_socket;
@@ -159,7 +161,7 @@ void PigeonDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, con
     }
     m_ferryPoints = points;
     m_ferryOrder = order;
-    Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this);
 }
 
 /**
@@ -183,7 +185,7 @@ void PigeonDtnApp::StartApplication(void)
 {
     if (m_socket->Bind(InetSocketAddress(Ipv4Address::GetAny(), m_port)) == -1)
     {
-        NS_LOG_UNCOND("Bind failed for node " << m_myIp);
+        NS_LOG_UNCOND("Bind failed for node " << nodeId[m_myIp.Get()]);
         return;
     }
     m_socket->SetRecvCallback(MakeCallback(&PigeonDtnApp::ReceivePacket, this));
@@ -191,15 +193,15 @@ void PigeonDtnApp::StartApplication(void)
     // OCB hỗ trợ broadcast rất tốt qua IP broadcast
     m_socket->SetAllowBroadcast(true);
 
-    NS_LOG_UNCOND("Node " << m_myIp << " started listening on port " << m_port);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " started listening on port " << m_port);
 
     if (m_nodeType == 0)
     {
-        NS_LOG_UNCOND("Node " << m_myIp << " is a GROUND node.");
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a GROUND node.");
     }
     else
     {
-        NS_LOG_UNCOND("Node " << m_myIp << " is a FERRY node.");
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a FERRY node.");
 
 
         Simulator::Schedule(GetJitter(), &PigeonDtnApp::Beacon, this);
@@ -215,7 +217,7 @@ Time PigeonDtnApp::GetJitter() {
 }
 
 void PigeonDtnApp::Beacon() {
-    // NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << m_myIp << ": Sending HELLO (OCB)");
+    // NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << nodeId[m_myIp.Get()] << ": Sending HELLO (OCB)");
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_BEACON);
     header.SetNodeIP(m_myIp);
@@ -333,7 +335,14 @@ void PigeonDtnApp::ScheduleTransfer(Ipv4Address ferryIp) {
     RemoveExpiredBundles();
 
     if (m_groupId != nodeGroup[ferryIp.Get()]) {
-        // TODO send bundle that belongs to ground node with ferry group id
+        // send bundle that belongs to ground node with ferry group id
+        // TODO send bundle knowing ferry route
+        for (auto& bundle : m_buffer) {
+            if (bundle.flag_waitingAck == false && nodeGroup[bundle.destination.Get()] == nodeGroup[ferryIp.Get()]) {
+                Simulator::Schedule(jitter, &PigeonDtnApp::SendBundle, this, bundle, ferryIp);
+                return;
+            }
+        }
         return; // not in the same group
     }
     for (auto& bundle : m_buffer) {
@@ -364,7 +373,7 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::FERRY_BEACON) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": BEACON from Ferry " << topHeader.GetNodeIP());
             Time jitter = GetJitter();
             if (m_nodeType == NODE_TYPE_GROUND) {
@@ -375,7 +384,7 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::GROUND_HELLO) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": HELLO from Ground node " << topHeader.GetNodeIP()
             );
 
@@ -414,6 +423,9 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
             RemoveExpiredBundles();
             if (m_buffer.size() >= m_maxBufferSize) {
                 NS_LOG_UNCOND("Bundle dropped due to buffer overflow");
+                if (m_nodeType == NODE_TYPE_FERRY && m_mode == MODE_FERRY) {
+                    SchedulePigeonOnBufferFull();
+                }
                 continue; // there are no place for this bundle
             }
             NS_LOG_UNCOND("Bundle added to buffer");
@@ -423,6 +435,9 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
             m_buffer.push_back(bundle);
             FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
             // RemoveOldBundle();
+            if (m_nodeType == NODE_TYPE_FERRY && m_mode == MODE_FERRY && m_buffer.size() >= m_maxBufferSize) {
+                SchedulePigeonOnBufferFull();
+            }
 
             Time jitter = GetJitter();
             Simulator::Schedule(jitter, &PigeonDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
@@ -433,7 +448,7 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
             packet->RemoveHeader(bundleAckHeader);
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": BUNDLE ACK from " << topHeader.GetNodeIP());
             RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
             FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
@@ -449,7 +464,7 @@ void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (packetType == MessageTypeHeader::FERRY_ACCEPT_TRANSFER) {
             NS_LOG_UNCOND(
                 Simulator::Now().GetSeconds()
-                << "s Node " << m_myIp
+                << "s Node " << nodeId[m_myIp.Get()]
                 << ": ACCEPT TRANSFER from ferry node " << topHeader.GetNodeIP()
             );
             ScheduleTransfer(topHeader.GetNodeIP());
@@ -479,7 +494,7 @@ void PigeonDtnApp::GenerateBundle() {
     RemoveOldBundle();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
-    NS_LOG_UNCOND("Node " << m_myIp << ": CREATED Bundle " << b.id << " to " << b.destination);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << b.destination);
 
     // generate based on poisson distribution
     double jitter = m_rand->GetValue(0.0, 1.0);
@@ -491,15 +506,39 @@ void PigeonDtnApp::RemoveExpiredBundles() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
     while (m_buffer.size() > 0 && m_buffer[0].creationTime + config.bundleTTL < currentTime) {
-        NS_LOG_UNCOND("Node " << m_myIp << ": EXPIRED Bundle " << m_buffer[0].id);
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << m_buffer[0].id);
         m_buffer.erase(m_buffer.begin());
+    }
+    RemoveImpossibleBundles();
+}
+
+void PigeonDtnApp::RemoveImpossibleBundles() {
+    Vector3D currentPos = m_mobility->GetPosition();
+    bool removed_bundle = true;
+    while (removed_bundle) {
+        removed_bundle = false;
+        for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
+            point2D target = { groundNodePos[it->destination.Get()].x, groundNodePos[it->destination.Get()].y };
+            point2D relative = { target.x - currentPos.x, target.y - currentPos.y };
+            double distance = relative.length() - config.commRange;
+            if (m_nodeType == NODE_TYPE_GROUND)
+                distance -= config.commRange;
+            Time expectedArrival = Simulator::Now() + Seconds(distance / config.ferrySpeed);
+            Time bundleExpirationTime = MicroSeconds(it->creationTime + config.bundleTTL);
+            if (expectedArrival > bundleExpirationTime) {
+                NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << it->id);
+                m_buffer.erase(it);
+                removed_bundle = true;
+                break;
+            }
+        }
     }
 }
 
 void PigeonDtnApp::RemoveOldBundle() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     while (m_buffer.size() > m_maxBufferSize) {
-        NS_LOG_UNCOND("Node " << m_myIp << ": DROPPED Bundle " << m_buffer[0].id);
+        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": DROPPED Bundle " << m_buffer[0].id);
         m_buffer.erase(m_buffer.begin());
     }
 }
@@ -620,13 +659,13 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
         if (time < 0.1) {
             // handle special case: when there only one node
             // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
-            Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+            m_mobilityScheduleEvent = Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
             return;
         }
 
 
-        Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
 
         point2D velocity;
         velocity.x = relative.x / distance * config.ferrySpeed;
@@ -656,11 +695,11 @@ void PigeonDtnApp::SchedulePigeonWaypoint() {
     m_pigeonNextIndex++;
 
     if (time < 0.1) {
-        Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
         return;
     }
-    Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
 
     point2D velocity;
     velocity.x = relative.x / distance * config.ferrySpeed;
@@ -669,5 +708,33 @@ void PigeonDtnApp::SchedulePigeonWaypoint() {
     m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
 }
 
+void PigeonDtnApp::SchedulePigeonOnBufferFull() {
+    Vector3D currentPos = m_mobility->GetPosition();
+    double currentTime = Simulator::Now().GetSeconds();
+    auto deadlines = GetDeadlines();
 
-#endif
+    std::vector<uint32_t> pigeonRoute;
+    pigeonRoute = TSPDeadlineBasedGA(
+        groundNodePos,
+        deadlines,
+        { currentPos.x, currentPos.y }, // starting pos
+        currentTime,
+        config.ferrySpeed
+    );
+    pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
+        groundNodePos,
+        deadlines,
+        { currentPos.x, currentPos.y }, // starting pos
+        currentTime,
+        config.ferrySpeed,
+        pigeonRoute
+    );
+    m_mode = MODE_PIGEON;
+    m_pigeonOrder = pigeonRoute;
+    m_pigeonNextIndex = 0;
+    SchedulePigeonWaypoint();
+    NS_LOG_UNCOND("Buffer full, Switch to pigeon mode");
+    return;
+}
+
+#endif // PIGEON_DTN_APP_H
