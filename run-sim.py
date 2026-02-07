@@ -4,8 +4,8 @@ import os
 # 1. Cấu hình các dải giá trị cần thử nghiệm (Grid Search)
 scenarios = {
     "nGrounds": [20, 25, 30],
-    "nFerrys": list(range(1, 16)),           # Từ 1 đến 15
-    "ferryBufferSize": [100, 150, 200, 250],
+    "nFerrys": [1,2,5,10,15],           # Từ 1 đến 15
+    "ferryBufferSize": [50, 100, 150, 200],
     "bundleTTL": [300, 600, 900]
 }
 
@@ -15,7 +15,7 @@ algorithms = ["sira", "pigeon"]
 # 3. Tham số cố định
 fixed_params = {
     "simTime": 2000,
-    "commRange": 120
+    "commRange": 150
 }
 
 def run_command(cmd):
@@ -65,6 +65,7 @@ def main():
                         )
                         
                         print(f"Progress: {current_run}/{total_runs}")
+                        print(cmd)
                         run_command(cmd)
 
 if __name__ == "__main__":

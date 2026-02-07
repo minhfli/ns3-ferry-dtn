@@ -69,7 +69,6 @@ class SimpleDtnApp : public Application
     // Bundle Logic
     void GenerateBundle();
     void RemoveExpiredBundles(); // remove old bundle that over TTL
-    void RemoveImpossibleBundles(); // remove bundles that event if a ferry fly straight from current position to the target, it still run out of TTL
     void RemoveOldBundle(); // remove oldest bundles to keep buffer size < max buffer size
     void RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp); // remove transmitted bundle
 
@@ -127,9 +126,12 @@ void SimpleDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, u
     m_bundleGenRate = 0.0;
 
     m_buffer.clear();
-    m_buffer.reserve(m_maxBufferSize + 1);
 
-    m_mobility = m_node->GetObject<MobilityModel>();
+    if (m_nodeType == NODE_TYPE_FERRY)
+        m_mobility = m_node->GetObject<ConstantVelocityMobilityModel>();
+    else {
+        m_mobility = m_node->GetObject<ConstantPositionMobilityModel>();
+    }
 }
 
 void SimpleDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order) {
@@ -461,35 +463,22 @@ void SimpleDtnApp::GenerateBundle() {
 }
 
 void SimpleDtnApp::RemoveExpiredBundles() {
-    std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
-    while (m_buffer.size() > 0 && m_buffer[0].creationTime + config.bundleTTL < currentTime) {
-        NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << m_buffer[0].id);
-        m_buffer.erase(m_buffer.begin());
-    }
-    RemoveImpossibleBundles();
-}
-void SimpleDtnApp::RemoveImpossibleBundles() {
-    Vector3D currentPos = m_mobility->GetPosition();
-    bool removed_bundle = true;
-    while (removed_bundle) {
-        removed_bundle = false;
-        for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
-            point2D target = { groundNodePos[it->destination.Get()].x, groundNodePos[it->destination.Get()].y };
-            point2D relative = { target.x - currentPos.x, target.y - currentPos.y };
-            double distance = relative.length() - config.commRange;
-            if (m_nodeType == NODE_TYPE_GROUND)
-                distance -= config.commRange;
-            Time expectedArrival = Simulator::Now() + Seconds(distance / config.ferrySpeed);
-            Time bundleExpirationTime = MicroSeconds(it->creationTime + config.bundleTTL);
-            if (expectedArrival > bundleExpirationTime) {
-                NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": EXPIRED Bundle " << it->id);
-                m_buffer.erase(it);
-                removed_bundle = true;
-                break;
-            }
-        }
-    }
+
+    m_buffer.erase(std::remove_if(m_buffer.begin(), m_buffer.end(), [&](const Bundle& b) {
+        // Điều kiện 1: Hết TTL
+        if (b.creationTime + config.bundleTTL < currentTime) return true;
+
+        // Điều kiện 2: Impossible (nếu bay thẳng vẫn không kịp)
+        Vector3D currentPos = m_mobility->GetPosition();
+        point2D target = groundNodePos[rawNodeId(b.destination.Get())];
+        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - config.commRange;
+        if (m_nodeType == NODE_TYPE_GROUND) dist -= config.commRange;
+
+        double timeToReach = dist / config.ferrySpeed;
+        return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));
+        }), m_buffer.end());
+
 }
 
 void SimpleDtnApp::RemoveOldBundle() {

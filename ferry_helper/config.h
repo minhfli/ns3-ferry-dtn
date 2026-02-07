@@ -27,7 +27,7 @@ struct Config {
 
     double ferrySpeed = 15.0;      // m/s
     uint16_t dtnPort = 9000;
-    uint32_t groundBufferSize = 1000000000; // bundles, ground node will only hold bundle that it created
+    uint32_t groundBufferSize = 100; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
     double bundleGenRate = 5.0; // 1 bundle every ... seconds

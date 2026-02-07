@@ -165,6 +165,7 @@ class BundleAckHeader : public Header
     }
 };
 
+
 class MessageTypeHeader : public Header {
     private:
     uint8_t m_type;

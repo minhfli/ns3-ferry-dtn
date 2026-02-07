@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     // Loggings //! IMPORTANT 
     // ==========================================================
 
-
+    config.SIMULATION_NAME = "PIGEON"; // default 
     // parse cmd line args
     ParseConfig(argc, argv);
 
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
     }
     mobility.SetPositionAllocator(ground_lpa);
 
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
     mobility.Install(GroundNodes);
 
     // Cấu hình Ferry bay
