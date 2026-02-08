@@ -90,7 +90,10 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const uin
     const double MUT_PROB = 0.2;
     const uint32_t ELITE = 20;
 
-    int n = points.size();
+    uint32_t n = points.size();
+    if (n == 0) { // avoid crash
+        return {};
+    }
     std::mt19937 gen(1337); //! MAGIC NUMBER - Fixed seed
 
     /* Initialize population */

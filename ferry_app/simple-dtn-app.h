@@ -472,8 +472,7 @@ void SimpleDtnApp::RemoveExpiredBundles() {
         // Điều kiện 2: Impossible (nếu bay thẳng vẫn không kịp)
         Vector3D currentPos = m_mobility->GetPosition();
         point2D target = groundNodePos[rawNodeId(b.destination.Get())];
-        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - config.commRange;
-        if (m_nodeType == NODE_TYPE_GROUND) dist -= config.commRange;
+        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - 2.0 * config.commRange;
 
         double timeToReach = dist / config.ferrySpeed;
         return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));

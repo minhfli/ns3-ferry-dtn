@@ -147,22 +147,30 @@ void PigeonDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, u
 
 void PigeonDtnApp::InitializeTSPMobility(const std::vector<point2D>& points, const std::vector<uint32_t>& order) {
     // uint32_t startIndex = m_rand->GetInteger(0, order.size() - 1);
-    auto cvmm = m_node->GetObject<ConstantVelocityMobilityModel>();
     m_ferryNextIndex = 0;
-    Vector3D currentPos = cvmm->GetPosition();
-    for (uint32_t i = 1; i < order.size(); i++) {
-        point2D relative = { points[order[i]].x - currentPos.x,
-                             points[order[i]].y - currentPos.y };
-        point2D startIdRelative = { points[m_ferryNextIndex].x - currentPos.x,
-                                    points[m_ferryNextIndex].y - currentPos.y };
-        double dist1 = relative.x * relative.x + relative.y * relative.y;
-        double dist2 = startIdRelative.x * startIdRelative.x + startIdRelative.y * startIdRelative.y;
-        if (dist1 < dist2) {
-            m_ferryNextIndex = i;
-        }
+
+
+    if (points.size() == 0) {
+        m_ferryPoints = { { 0.0,0.0 } };
+        m_ferryOrder = { 0 };
     }
-    m_ferryPoints = points;
-    m_ferryOrder = order;
+    else {
+
+        Vector3D currentPos = m_mobility->GetPosition();
+        for (uint32_t i = 1; i < order.size(); i++) {
+            point2D relative = { points[order[i]].x - currentPos.x,
+                                 points[order[i]].y - currentPos.y };
+            point2D startIdRelative = { points[m_ferryNextIndex].x - currentPos.x,
+                                        points[m_ferryNextIndex].y - currentPos.y };
+            double dist1 = relative.x * relative.x + relative.y * relative.y;
+            double dist2 = startIdRelative.x * startIdRelative.x + startIdRelative.y * startIdRelative.y;
+            if (dist1 < dist2) {
+                m_ferryNextIndex = i;
+            }
+        }
+        m_ferryPoints = points;
+        m_ferryOrder = order;
+    }
     m_mobilityScheduleEvent = Simulator::Schedule(Time(0), &PigeonDtnApp::ScheduleNextWaypoint, this);
 }
 
@@ -514,8 +522,7 @@ void PigeonDtnApp::RemoveExpiredBundles() {
         // Điều kiện 2: Impossible (nếu bay thẳng vẫn không kịp)
         Vector3D currentPos = m_mobility->GetPosition();
         point2D target = groundNodePos[rawNodeId(b.destination.Get())];
-        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - config.commRange;
-        if (m_nodeType == NODE_TYPE_GROUND) dist -= config.commRange;
+        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - 2.0 * config.commRange;
 
         double timeToReach = dist / config.ferrySpeed;
         return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));

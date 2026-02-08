@@ -3,10 +3,10 @@ import os
 
 # 1. Cấu hình các dải giá trị cần thử nghiệm (Grid Search)
 scenarios = {
-    "nGrounds": [20, 25, 30],
-    "nFerrys": [1,2,5,10,15],           # Từ 1 đến 15
-    "ferryBufferSize": [50, 100, 150, 200],
-    "bundleTTL": [300, 600, 900]
+    "nGrounds": [ 25],
+    "nFerrys": [5,10,15],           # Từ 1 đến 15
+    "ferryBufferSize": [ 100,  200],
+    "bundleTTL": [ 600]
 }
 
 # 2. Danh sách thuật toán
@@ -14,7 +14,7 @@ algorithms = ["sira", "pigeon"]
 
 # 3. Tham số cố định
 fixed_params = {
-    "simTime": 2000,
+    "simTime": 5000,
     "commRange": 150
 }
 
