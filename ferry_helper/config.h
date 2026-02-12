@@ -8,7 +8,8 @@
 using namespace ns3;
 
 struct Config {
-    std::string SIMULATION_NAME = "DTN";
+    int randSeed = 1337;
+    std::string ALGORITHM_NAME = "SR";
     std::string SIMULATION_RUN = "1";
     // sim config
     double simTime = 5000.0; // seconds
@@ -18,15 +19,12 @@ struct Config {
     uint32_t nGrounds = 25;
     uint32_t nFerrys = 5;
 
-    bool enable_background = false;
-
     // node config
     double beaconInterval = 3.0;    // seconds
     double beaconRandomness = 1.0; // seconds
-    uint32_t jitterAmount = 1000; // 1 milisecconds, used for exchange message
+    uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds
 
     double ferrySpeed = 15.0;      // m/s
-    uint16_t dtnPort = 9000;
     uint32_t groundBufferSize = 100; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
@@ -56,7 +54,8 @@ struct SimulationVariablePointer {
 void ParseConfig(int argc, char* argv[]) {
     CommandLine cmd;
     // commented values are fixed variables
-    cmd.AddValue("name", "Simulation Name", config.SIMULATION_NAME);
+    cmd.AddValue("seed", "Random seed", config.randSeed);
+    cmd.AddValue("name", "Simulation Name", config.ALGORITHM_NAME);
     cmd.AddValue("run", "Simulation Run", config.SIMULATION_RUN);
     cmd.AddValue("simTime", "Simulation time", config.simTime);
     cmd.AddValue("commRange", "Communication range", config.commRange);
@@ -68,7 +67,6 @@ void ParseConfig(int argc, char* argv[]) {
     // cmd.AddValue("beaconRandomness", "Beacon randomness", config.beaconRandomness);
     // cmd.AddValue("jitterAmount", "Jitter amount", config.jitterAmount);
     cmd.AddValue("ferrySpeed", "Ferry speed", config.ferrySpeed);
-    // cmd.AddValue("dtnPort", "Dtn port", config.dtnPort);
     cmd.AddValue("groundBufferSize", "Ground buffer size", config.groundBufferSize);
     cmd.AddValue("ferryBufferSize", "Ferry buffer size", config.ferryBufferSize);
     cmd.AddValue("bundleGenRate", "Bundle generation rate", config.bundleGenRate);

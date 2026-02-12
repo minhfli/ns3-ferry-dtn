@@ -22,17 +22,32 @@ namespace Report {
 
     void Export() {
         std::ofstream file(reportFileName);
+        file << "--CONFIG" << std::endl;
+        file << "Simulation Time: " << config.simTime << std::endl;
+        file << "Area Width: " << config.areaWidth << std::endl;
+        file << "Bundle Generation Rate: " << config.bundleGenRate << std::endl;
+        file << "Bundle TTL: " << config.bundleTTL << std::endl;
+        file << "Comm Range: " << config.commRange << std::endl;
+        file << "Ferry Height: " << config.ferryHeight << std::endl;
+        file << "Ferry Speed: " << config.ferrySpeed << std::endl;
+        file << "Ground Buffer Size: " << config.groundBufferSize << std::endl;
+        file << "Ferry Buffer Size: " << config.ferryBufferSize << std::endl;
+        file << "Number of Grounds: " << config.nGrounds << std::endl;
+        file << "Number of Ferries: " << config.nFerrys << std::endl;
+
+        file << "--REPORT" << std::endl;
         file << "Bundle Count: " << bundleCount << std::endl;
         file << "Bundle Reached Destination: " << bundleReachedDestination << std::endl;
         file << "Total Delay: " << totalDelay.GetSeconds() << " seconds" << std::endl;
         file << "Average Delay: " << totalDelay.GetSeconds() / bundleCount << " seconds" << std::endl;
-        file << "Average Hops: " << (double)totalHopReachedDestination / bundleReachedDestination << std::endl;
+        if (bundleReachedDestination == 0)
+            file << "Average Hops: 0" << std::endl;
+        else
+            file << "Average Hops: " << (double)totalHopReachedDestination / bundleReachedDestination << std::endl;
         file << "Delivery Ratio: " << (double)bundleReachedDestination / bundleCount << std::endl;
         file << "Foward Ratio: " << (double)bundleFowardCount / bundleCount << std::endl;
         file.close();
     }
-
-
 }
 
 #endif // REPORT_H

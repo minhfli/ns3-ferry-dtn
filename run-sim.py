@@ -1,12 +1,15 @@
+from cmd import Cmd
 import subprocess
 import os
+import sys
+
 
 # 1. Cấu hình các dải giá trị cần thử nghiệm (Grid Search)
 scenarios = {
     "nGrounds": [ 25],
-    "nFerrys": [5,10,15],           # Từ 1 đến 15
+    "nFerrys": [5],           # Từ 1 đến 15
     "ferryBufferSize": [ 100,  200],
-    "bundleTTL": [ 600]
+    "bundleTTL": [ 300, 600, 900]
 }
 
 # 2. Danh sách thuật toán
@@ -30,7 +33,7 @@ def run_command(cmd):
 def main():
     # Di chuyển ra thư mục gốc của NS-3 để chạy ./waf
     # Nếu file python này đã nằm ở gốc rồi thì có thể bỏ qua dòng os.chdir
-    if os.path.basename(os.getcwd()) != "ns-allinone-3.xx": # Thay bằng tên thư mục của bạn nếu cần
+    if os.path.basename(os.getcwd()) == "scratch": # Thay bằng tên thư mục của bạn nếu cần
          os.chdir("..")
 
     # Đếm tổng số lần chạy để theo dõi tiến độ
@@ -38,6 +41,12 @@ def main():
                  len(scenarios["nFerrys"]) * len(scenarios["ferryBufferSize"]) * \
                  len(scenarios["bundleTTL"])
     current_run = 0
+
+    # Parse arguments from cmd
+    print_only = False
+    if len(sys.argv) > 1 and sys.argv[1] == "--print-only":
+        print_only = True
+    
 
     for algo in algorithms:
         for ng in scenarios["nGrounds"]:
@@ -59,14 +68,15 @@ def main():
                             f"--nGrounds={ng} "
                             f"--nFerrys={nf} "
                             f"--ferryBufferSize={fbuf} "
-                            f"--bundleTTL={ttl} "
+                            f"--bundleTTL={ttl * 1000000} " 
                             f"--simTime={fixed_params['simTime']} "
                             f"--commRange={fixed_params['commRange']}\""
                         )
                         
                         print(f"Progress: {current_run}/{total_runs}")
                         print(cmd)
-                        run_command(cmd)
+                        if not print_only:
+                            run_command(cmd)
 
 if __name__ == "__main__":
     main()

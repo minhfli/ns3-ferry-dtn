@@ -526,6 +526,7 @@ void PigeonDtnApp::RemoveExpiredBundles() {
 
         double timeToReach = dist / config.ferrySpeed;
         return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));
+        return false;
         }), m_buffer.end());
 
 }

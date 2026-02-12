@@ -25,6 +25,7 @@
 #include "ferry_helper/packet-helper.h"
 #include "ferry_helper/viz-helper.h"
 
+#include "ferry_app/base-dtn-app.h"
 #include "ferry_app/simple-dtn-app.h"
 
 #include <vector>
@@ -34,7 +35,14 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("SimpleDtnApp");
+NS_LOG_COMPONENT_DEFINE("FerryDtnSimulation");
+
+Ptr<BaseDtnApp> createApp() {
+    if (config.ALGORITHM_NAME == "SIRA") {
+        return CreateObject<SingleRouteDtnApp>();
+    }
+    return nullptr;
+}
 
 // ===========================================================================
 // MAIN SCRIPT
@@ -49,14 +57,13 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Loggings //! IMPORTANT 
     // ==========================================================
-    config.SIMULATION_NAME = "SIRA"; // default 
     // parse cmd line args
     ParseConfig(argc, argv);
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/trace-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
-    LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
+    LogComponentEnable("FerryDtnSimulation", LOG_LEVEL_INFO);
 
     // ==========================================================
     // Tạo Node
@@ -105,26 +112,23 @@ int main(int argc, char* argv[]) {
     // MOBILITY
     // ==========================================================
 
+    // Generate ground node positions
     double areaPadding = 100; // padding to avoid node on edge of the map
-    double rangePadding = config.commRange + 30; // padding tp avoid node near communication range
+    double rangePadding = config.commRange * 2.0 + 20; // padding tp avoid node near communication range
     groundNodePos =
-        PoissonDisk_RandomSample(config.nGrounds, config.commRange + rangePadding, config.areaWidth - areaPadding);
+        PoissonDisk_RandomSample(config.nGrounds, rangePadding, config.areaWidth - areaPadding * 2);
 
-    std::vector<uint32_t> order = TSPClassicGA(groundNodePos);
-    order = TSPTwoOptOptimize(groundNodePos, order);
-
-    MobilityHelper mobility;
-
+    // Cấu hình mobility cho ground node
+    MobilityHelper groundMobility;
     Ptr<ListPositionAllocator> ground_lpa = CreateObject<ListPositionAllocator>();
     for (uint32_t i = 0; i < config.nGrounds; i++) {
-        groundNodePos[i].x += areaPadding / 2;
-        groundNodePos[i].y += areaPadding / 2;
+        groundNodePos[i].x += areaPadding;
+        groundNodePos[i].y += areaPadding;
         ground_lpa->Add(Vector(groundNodePos[i].x, groundNodePos[i].y, 0));
     }
-    mobility.SetPositionAllocator(ground_lpa);
-
-    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-    mobility.Install(GroundNodes);
+    groundMobility.SetPositionAllocator(ground_lpa);
+    groundMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
+    groundMobility.Install(GroundNodes);
 
     // Cấu hình Ferry bay
     MobilityHelper ferryMobility;
@@ -132,12 +136,11 @@ int main(int argc, char* argv[]) {
     Ptr<ListPositionAllocator> lpa = CreateObject<ListPositionAllocator>();
     lpa->Add(Vector(config.areaWidth / 2, config.areaWidth / 2, config.ferryHeight)); // Bắt đầu tại chính giữa, cao 50m
     ferryMobility.SetPositionAllocator(lpa);
-
     ferryMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
     ferryMobility.Install(ferryNode);
 
     // ==========================================================
-    // INTERNET STACK & APP
+    // INTERNET STACK 
     // ==========================================================
 
     InternetStackHelper internet;
@@ -149,23 +152,39 @@ int main(int argc, char* argv[]) {
 
     TypeId tid = TypeId::LookupByName("ns3::UdpSocketFactory");
 
-    // Cài App cho Ground Nodes
-    for (uint32_t n = 0; n < config.nGrounds; n++) {
-        Ptr<Node> gNode = GroundNodes.Get(n);
-        Ptr<Socket> socket = Socket::CreateSocket(gNode, tid);
-        Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
-        Ipv4Address address = i.GetAddress(gNode->GetId());
-        groundNodeIps.push_back(address);
+    // ==========================================================
+    // Application
+    // ==========================================================
+    uint32_t groupCount = 0;
+    if (config.ALGORITHM_NAME == "SIRA") {
+        groupCount = 1;
+    }
+    if (config.ALGORITHM_NAME == "PIGEON") {
+        groupCount = config.nFerrys;
+    }
+    auto clusters = KMeans(groundNodePos, groupCount);
 
-        gNode->AddApplication(app);
-        app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
-        app->SetStartTime(Seconds(1.0));
-        app->SetStopTime(Seconds(config.simTime));
-        app->EnableBundleGeneration(config.bundleGenRate);
 
-        nodeType[address.Get()] = NODE_TYPE_GROUND;
-        nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
-        nodeGroup[address.Get()] = 0;
+    for (uint32_t group = 0; group < groupCount; group++) {
+        auto& cluster = clusters[group];
+        // Cài App cho Ground Nodes
+        for (auto n : cluster) {
+            Ptr<Node> gNode = GroundNodes.Get(n);
+            Ptr<Socket> socket = Socket::CreateSocket(gNode, tid);
+            Ptr<BaseDtnApp> app = createApp();
+            Ipv4Address address = i.GetAddress(gNode->GetId());
+            groundNodeIps.push_back(address);
+
+            nodeType[address.Get()] = NODE_TYPE_GROUND;
+            nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
+            nodeGroup[address.Get()] = group;
+
+            gNode->AddApplication(app);
+            app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
+            app->SetStartTime(Seconds(1.0));
+            app->SetStopTime(Seconds(config.simTime));
+            app->EnableBundleGeneration(config.bundleGenRate);
+        }
     }
 
 
@@ -174,19 +193,18 @@ int main(int argc, char* argv[]) {
         Ptr<Node> fNode = ferryNode.Get(n);
 
         Ptr<Socket> socket = Socket::CreateSocket(fNode, tid);
-        Ptr<SimpleDtnApp> app = CreateObject<SimpleDtnApp>();
+        Ptr<BaseDtnApp> app = createApp();
         Ipv4Address address = i.GetAddress(fNode->GetId());
+
+        nodeType[address.Get()] = NODE_TYPE_FERRY;
+        nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
+        nodeGroup[address.Get()] = n % groupCount;
 
         fNode->AddApplication(app);
         app->Setup(fNode, socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
-
-        nodeType[address.Get()] = NODE_TYPE_FERRY;
-        nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
-        nodeGroup[address.Get()] = 0;
-
-        app->InitializeTSPMobility(groundNodePos, order);
+        app->InitializeMobility(clusters[nodeGroup[address.Get()]]);
     }
     // ==========================================================
     // Simulation

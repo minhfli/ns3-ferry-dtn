@@ -35,4 +35,8 @@ uint32_t rawNodeId(uint32_t ip) {
     return std::stoi(nodeId[ip].substr(1));
 }
 
+point2D nodePos(uint32_t ip) {
+    return groundNodePos[rawNodeId(ip)];
+}
+
 #endif

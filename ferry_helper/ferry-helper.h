@@ -110,6 +110,7 @@ std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double area
             activeList.erase(activeList.begin() + randIdx);
         }
     }
+    NS_ASSERT(points.size() == n);
 
     return points;
 }
@@ -146,6 +147,12 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
 
         attempts++;
     }
+
+    if (points.size() < n) {
+        NS_LOG_UNCOND("Random Sample Failed, trying to Bridson Sample");
+        return PoissonDisk_BridsonSample(n, r, areaWidth);
+    }
+    NS_ASSERT(points.size() == n);
 
     return points;
 }

@@ -37,22 +37,18 @@ NS_LOG_COMPONENT_DEFINE("SimpleDtnApp");
 // MAIN SCRIPT
 // ===========================================================================
 int main(int argc, char* argv[]) {
+
+    config.ALGORITHM_NAME = "PIGEON"; // default 
+    ParseConfig(argc, argv);
+
     // set random seed so every run is the same
-    srand(1337);
-    SeedManager::SetSeed(1337);
+    srand(config.randSeed);
+    SeedManager::SetSeed(config.randSeed);
     // initialize global random generator
     m_rand = CreateObject<UniformRandomVariable>();
 
-    // ==========================================================
-    // Loggings //! IMPORTANT 
-    // ==========================================================
-
-    config.SIMULATION_NAME = "PIGEON"; // default 
-    // parse cmd line args
-    ParseConfig(argc, argv);
-
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/dtn-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.SIMULATION_NAME + "_" + config.SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/trace-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("SimpleDtnApp", LOG_LEVEL_INFO);
 
