@@ -28,6 +28,10 @@
 #include <cmath>
 #include <unordered_map>
 
+/**
+ * This is the ns3-based implementation of https://ieeexplore.ieee.org/document/8566956/
+ */
+
 class PigeonDtnApp : public BaseDtnApp {
     public:
     PigeonDtnApp() {}

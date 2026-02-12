@@ -40,7 +40,9 @@ class SingleRouteDtnApp : public BaseDtnApp {
     // --- CORE LOGIC: Nơi bạn sẽ cài thuật toán Routing --)
     virtual void ReceivePacket(Ptr<Socket> socket);
 
+    private:
     uint32_t m_nextWaypointIndex;
+    int m_direction;
     void ScheduleNextWaypoint();
 };
 
@@ -56,13 +58,15 @@ void SingleRouteDtnApp::InitializeMobility(const std::vector<uint32_t>& servingN
         SIRA::points = points;
         SIRA::createRoute();
     }
+    m_direction = m_rand->GetInteger(0, 1);
+    m_direction = 2 * m_direction - 1; // -1 or 1
     m_nextWaypointIndex = m_rand->GetInteger(0, SIRA::route.size() - 1);
     Simulator::Schedule(Seconds(0), &SingleRouteDtnApp::ScheduleNextWaypoint, this);
 }
 
 void SingleRouteDtnApp::ScheduleNextWaypoint() {
     Vector3D currentPos = m_mobility->GetPosition();
-    m_nextWaypointIndex = (m_nextWaypointIndex + 1) % SIRA::route.size();
+    m_nextWaypointIndex = (m_nextWaypointIndex + m_direction + SIRA::route.size()) % SIRA::route.size();
     point2D target = SIRA::points[SIRA::route[m_nextWaypointIndex]];
 
     point2D relative = { target.x - currentPos.x,
@@ -86,7 +90,7 @@ std::vector<uint32_t> SingleRouteDtnApp::GetServingNodeRoute() {
 
     uint32_t len = SIRA::route.size();
     for (uint32_t i = 0; i < len; i++) {
-        nodeRoute.push_back(SIRA::nodeList[SIRA::route[(i + m_nextWaypointIndex) % len]]);
+        nodeRoute.push_back(SIRA::nodeList[SIRA::route[(i * m_direction + m_nextWaypointIndex + len) % len]]);
     }
     return nodeRoute;
 }
@@ -95,7 +99,7 @@ std::vector<point2D> SingleRouteDtnApp::GetServingWaypointRoute() {
     std::vector<point2D> waypointRoute;
     uint32_t len = SIRA::route.size();
     for (uint32_t i = 0; i < len; i++) {
-        waypointRoute.push_back(SIRA::points[SIRA::route[(i + m_nextWaypointIndex) % len]]);
+        waypointRoute.push_back(SIRA::points[SIRA::route[(i * m_direction + m_nextWaypointIndex + len) % len]]);
     }
     return waypointRoute;
 }
@@ -218,4 +222,3 @@ void SingleRouteDtnApp::ReceivePacket(Ptr<Socket> socket) {
 
 
 #endif // SIMPLE_DTN_APP_H
-

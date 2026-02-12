@@ -6,7 +6,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "PIGEON",
+    "name": "SIRA",
     "run": "abc",
     "simTime": 5000,
     "commRange": 150,

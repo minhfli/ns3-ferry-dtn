@@ -21,7 +21,7 @@ struct Config {
     uint32_t nFerrys = 5;
 
     // node config
-    double beaconInterval = 3.0;    // seconds
+    double beaconInterval = 4.0;    // seconds
     double beaconRandomness = 1.0; // seconds
     uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds
 
