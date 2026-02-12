@@ -27,6 +27,7 @@
 
 #include "ferry_app/base-dtn-app.h"
 #include "ferry_app/simple-dtn-app.h"
+#include "ferry_app/pigeon-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -40,6 +41,9 @@ NS_LOG_COMPONENT_DEFINE("FerryDtnSimulation");
 Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "SIRA") {
         return CreateObject<SingleRouteDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "PIGEON") {
+        return CreateObject<PigeonDtnApp>();
     }
     return nullptr;
 }
@@ -184,6 +188,7 @@ int main(int argc, char* argv[]) {
             app->SetStartTime(Seconds(1.0));
             app->SetStopTime(Seconds(config.simTime));
             app->EnableBundleGeneration(config.bundleGenRate);
+            app->SetGroup(group);
         }
     }
 
@@ -204,6 +209,7 @@ int main(int argc, char* argv[]) {
         app->Setup(fNode, socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);
         app->SetStartTime(Seconds(1.0));
         app->SetStopTime(Seconds(config.simTime));
+        app->SetGroup(nodeGroup[address.Get()]);
         app->InitializeMobility(clusters[nodeGroup[address.Get()]]);
     }
     // ==========================================================

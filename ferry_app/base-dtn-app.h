@@ -46,6 +46,9 @@ class BaseDtnApp : public Application {
     // Setup chung cho mọi App
     void Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType);
     void EnableBundleGeneration(double rate, bool inversed = true);
+    void SetGroup(uint8_t groupId) {
+        m_groupId = groupId;
+    }
 
     /**
      * Setup mobility cho node
@@ -90,7 +93,7 @@ class BaseDtnApp : public Application {
     uint8_t m_nodeType; // 0: Ground, 1: Ferry
     uint8_t m_groupId; // for clustering
     uint8_t m_mode; // curent operation mode
-
+    bool m_enableFerryComm; // enable communication between ferry 
 
     double m_bundleGenRate;
     std::vector<Bundle> m_buffer;
@@ -133,7 +136,7 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     }
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + m_rand->GetValue(0.0, averageBundleTime);
-    Simulator::Schedule(Seconds(startTime), &BaseDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(startTime + config.startGeneraionTime), &BaseDtnApp::GenerateBundle, this);
 }
 
 void BaseDtnApp::StartApplication(void) {

@@ -35,10 +35,9 @@ class SingleRouteDtnApp : public BaseDtnApp {
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
     virtual std::vector<point2D> GetServingWaypointRoute() override;
 
-    private:
+    protected:
 
     // --- CORE LOGIC: Nơi bạn sẽ cài thuật toán Routing --)
-
     virtual void ReceivePacket(Ptr<Socket> socket);
 
     uint32_t m_nextWaypointIndex;

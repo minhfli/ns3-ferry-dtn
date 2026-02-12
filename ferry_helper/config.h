@@ -13,6 +13,7 @@ struct Config {
     std::string SIMULATION_RUN = "1";
     // sim config
     double simTime = 5000.0; // seconds
+    double startGeneraionTime = 300.0; // seconds
     double commRange = 150.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 4000; // meters
@@ -31,6 +32,8 @@ struct Config {
     double bundleGenRate = 5.0; // 1 bundle every ... seconds
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
+
+    bool enableFerryComm = false;
 
     // physical payload size of a chunk and bundle
     uint32_t chunkPayload = 1024; // 1KB, currently, we will only use this
@@ -71,6 +74,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("ferryBufferSize", "Ferry buffer size", config.ferryBufferSize);
     cmd.AddValue("bundleGenRate", "Bundle generation rate", config.bundleGenRate);
     cmd.AddValue("bundleTTL", "Bundle TTL", config.bundleTTL);
+    cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);
 
     cmd.Parse(argc, argv);
