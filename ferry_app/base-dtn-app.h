@@ -61,12 +61,13 @@ class BaseDtnApp : public Application {
     void StartApplication(void) override;
     void StopApplication(void) override;
 
-    // Logic nhận gói tin sẽ khác nhau hoàn toàn -> Pure Virtual Function
-    virtual void ReceivePacket(Ptr<Socket> socket) = 0;
+
     // Lấy route của ferry, dưới dạng node IP
     virtual std::vector<uint32_t> GetServingNodeRoute() = 0;
     // Lấy route của ferry, dưới dạng waypoint
     virtual std::vector<point2D> GetServingWaypointRoute() = 0;
+
+    std::vector<uint64_t> GetServingExpectedArrival();
 
     // --- Các hàm tiện ích dùng chung (Sending functions) ---
     void Beacon();
@@ -77,6 +78,21 @@ class BaseDtnApp : public Application {
     void SendBundleAck(Bundle bundle, Ipv4Address neighborIp);
     void Schedule_FerryToGround_Transfer(Ipv4Address groundIp);
     void Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp);
+
+    // --- Logic xử lý sự kiện dùng chung ---
+    virtual void ReceivePacket(Ptr<Socket> socket);
+
+    virtual void OnGroundReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnGroundReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet);
+
+
+    virtual void OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet);
+
 
     // --- Bundle Logic dùng chung ---
     void GenerateBundle();
@@ -105,6 +121,8 @@ class BaseDtnApp : public Application {
 };
 
 NS_OBJECT_ENSURE_REGISTERED(BaseDtnApp);
+
+#pragma region Setup
 
 BaseDtnApp::BaseDtnApp()
     : m_port(80), m_maxBufferSize(100), m_bundleIdCounter(0) {
@@ -162,6 +180,27 @@ void BaseDtnApp::StopApplication(void) {
     if (m_socket) { m_socket->Close(); }
 }
 
+std::vector<uint64_t> BaseDtnApp::GetServingExpectedArrival() {
+    auto waypointRoute = this->GetServingWaypointRoute();
+    if (waypointRoute.empty()) return {};
+
+    std::vector<uint64_t> expectedArrival;
+    Vector3D currentPos = m_mobility->GetPosition();
+    double currentTime = Simulator::Now().GetMicroSeconds();
+    for (auto waypoint : waypointRoute) {
+        point2D relative = { waypoint.x - currentPos.x,
+                             waypoint.y - currentPos.y };
+        double timeToReach = relative.length() * 1000000.0 / config.ferrySpeed;
+        currentTime += timeToReach;
+        expectedArrival.push_back(currentTime);
+        currentPos = Vector3D(waypoint.x, waypoint.y, 0.0);
+    }
+    return expectedArrival;
+}
+
+#pragma endregion
+#pragma region SendingFunction
+
 void BaseDtnApp::Beacon() {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_BEACON);
@@ -193,7 +232,24 @@ void BaseDtnApp::SendGroundHello(Ipv4Address ferryIp) {
 }
 
 void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
-    // TODO
+    MessageTypeHeader header;
+    header.SetType(MessageTypeHeader::FERRY_HELLO);
+    header.SetNodeIP(m_myIp);
+
+    FerryRouteHeader fRouteHeader;
+    fRouteHeader.SetGroup(m_groupId);
+    auto routeIp = this->GetServingNodeRoute();
+    auto routeArrival = this->GetServingExpectedArrival();
+    uint32_t count = routeIp.size();
+    fRouteHeader.SetCount(count);
+    fRouteHeader.SetWaypoints(routeIp);
+    fRouteHeader.SetExpectedArrival(routeArrival);
+
+    Ptr<Packet> packet = Create<Packet>(0);
+    packet->AddHeader(header);
+
+    InetSocketAddress unicast = InetSocketAddress(ferryIp, m_port);
+    m_socket->SendTo(packet, 0, unicast);
 }
 
 void BaseDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
@@ -201,9 +257,14 @@ void BaseDtnApp::SendFerryAcceptTransfer(Ipv4Address groundIp) {
     header.SetType(MessageTypeHeader::FERRY_ACCEPT_TRANSFER);
     header.SetNodeIP(m_myIp);
 
-    FerryRouteHeader fRouteHeader; // TODO handling waypoints
+    FerryRouteHeader fRouteHeader;
     fRouteHeader.SetGroup(m_groupId);
-    fRouteHeader.SetCount(0);
+    auto routeIp = this->GetServingNodeRoute();
+    auto routeArrival = this->GetServingExpectedArrival();
+    uint32_t count = routeIp.size();
+    fRouteHeader.SetCount(count);
+    fRouteHeader.SetWaypoints(routeIp);
+    fRouteHeader.SetExpectedArrival(routeArrival);
 
     Ptr<Packet> packet = Create<Packet>(0);
     packet->AddHeader(header);
@@ -217,12 +278,7 @@ void BaseDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     header.SetType(MessageTypeHeader::BUNDLE);
     header.SetNodeIP(m_myIp);
 
-    BundleHeader bundleHeader;
-    bundleHeader.SetHop(bundle.hop);
-    bundleHeader.SetBundleId(bundle.id);
-    bundleHeader.SetSourceIp(bundle.source);
-    bundleHeader.SetDestIp(bundle.destination);
-    bundleHeader.SetCreationTime(bundle.creationTime);
+    BundleHeader bundleHeader = BundleHeader::fromBundle(bundle);
 
     bundle.flag_waitingAck = true;
     Simulator::Schedule(MicroSeconds(config.bundleAckTimeout),
@@ -298,7 +354,6 @@ void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
     }
 }
 
-
 void BaseDtnApp::GenerateBundle() {
     m_bundleIdCounter++;
     Bundle b;
@@ -371,5 +426,147 @@ void BaseDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
         }
     }
 }
+
+#pragma endregion
+
+#pragma region OnReceive
+
+void BaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
+    Ptr<Packet> packet;
+    Address from;
+    while ((packet = socket->RecvFrom(from))) {
+        MessageTypeHeader topHeader;
+        packet->RemoveHeader(topHeader);
+
+        FerryVisualizer::logPacket(
+            nodeId[topHeader.GetNodeIP().Get()], // from node id
+            nodeId[m_myIp.Get()], // to node id
+            topHeader.GetMetaName() // metadata
+        );
+        if (topHeader.GetNodeIP() == m_myIp) continue;
+
+        NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << nodeId[m_myIp.Get()] << " Receive " << topHeader.GetMetaName() << " from " << nodeId[topHeader.GetNodeIP().Get()]);
+
+        auto packetType = topHeader.GetType();
+        if (packetType == MessageTypeHeader::FERRY_BEACON) {
+            OnGroundReceiveBeacon(topHeader.GetNodeIP(), packet);
+        }
+        if (packetType == MessageTypeHeader::GROUND_HELLO) {
+            OnFerryReceiveGroundHello(topHeader.GetNodeIP(), packet);
+        }
+        if (packetType == MessageTypeHeader::BUNDLE) {
+            OnGroundReceiveBundle(topHeader.GetNodeIP(), packet);
+            OnFerryReceiveBundle(topHeader.GetNodeIP(), packet);
+        }
+        if (packetType == MessageTypeHeader::BUNDLE_ACK) {
+            OnGroundReceiveBundleAck(topHeader.GetNodeIP(), packet);
+            OnFerryReceiveBundleAck(topHeader.GetNodeIP(), packet);
+        }
+        if (packetType == MessageTypeHeader::FERRY_ACCEPT_TRANSFER) {
+            OnGroundReceiveFerryAcceptTransfer(topHeader.GetNodeIP(), packet);
+        }
+    }
+}
+
+
+void BaseDtnApp::OnGroundReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_FERRY)  return;
+    Time jitter = GetJitter();
+    Simulator::Schedule(jitter, &BaseDtnApp::SendGroundHello, this, sourceIp);
+}
+
+void BaseDtnApp::OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_FERRY) return;
+    Schedule_GroundToFerry_Transfer(sourceIp);
+}
+
+void BaseDtnApp::OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_FERRY) return;
+    BundleHeader bundleHeader;
+    packet->RemoveHeader(bundleHeader);
+    Bundle bundle = bundleHeader.toBundle();
+
+    if (bundle.destination != m_myIp) {
+        NS_LOG_UNCOND("FATAL: all bundles send to ground node should be the final hop");
+        NS_ASSERT(false);
+        return;
+    }
+
+    NS_LOG_UNCOND("Bundle reached destination");
+    Time jitter = GetJitter();
+    Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+    Report::bundleReachedDestination++;
+    Report::totalHopReachedDestination += bundle.hop;
+    Report::totalHop++;
+    Report::bundleFowardCount++;
+    Report::totalDelay += Simulator::Now() - MicroSeconds(bundle.creationTime);
+}
+
+void BaseDtnApp::OnGroundReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_FERRY) return;
+    BundleAckHeader bundleAckHeader;
+    packet->RemoveHeader(bundleAckHeader);
+    RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+
+    if (nodeType[sourceIp.Get()] == NODE_TYPE_FERRY) {
+        Schedule_GroundToFerry_Transfer(sourceIp);
+    }
+}
+
+
+
+void BaseDtnApp::OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_GROUND) return;
+    Schedule_FerryToGround_Transfer(sourceIp);
+}
+
+void BaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_GROUND) return;
+    // TODO Ferry to Ferry transfer
+}
+
+void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_GROUND) return;
+    BundleHeader bundleHeader;
+    packet->RemoveHeader(bundleHeader);
+    Bundle bundle = bundleHeader.toBundle();
+
+    if (bundle.destination == m_myIp) {
+        NS_LOG_UNCOND("FATAL: FERRY is not the destination of any bundle");
+        NS_ASSERT(false);
+        return;
+    }
+
+    RemoveExpiredBundles();
+    if (m_buffer.size() >= m_maxBufferSize) {
+        NS_LOG_UNCOND("Bundle dropped due to buffer overflow");
+        return;
+    }
+    NS_LOG_UNCOND("Bundle added to buffer");
+
+    Report::totalHop++;
+    Report::bundleFowardCount++;
+    m_buffer.push_back(bundle);
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+    // RemoveOldBundle();
+
+    Time jitter = GetJitter();
+    Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+}
+
+void BaseDtnApp::OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_GROUND) return;
+    BundleAckHeader bundleAckHeader;
+    packet->RemoveHeader(bundleAckHeader);
+    RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+    if (nodeType[sourceIp.Get()] == NODE_TYPE_GROUND) {
+        Schedule_FerryToGround_Transfer(sourceIp);
+    }
+    // TODO Ferry to Ferry transfer
+}
+
+
 
 #endif

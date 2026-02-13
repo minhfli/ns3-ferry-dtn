@@ -52,6 +52,26 @@ class BundleHeader : public Header
     void SetCreationTime(uint64_t time) { m_creationTime = time; }
     uint64_t GetCreationTime() const { return m_creationTime; }
 
+    Bundle toBundle() const { // call when you want to decode header to bundle, note that hop is automatically incremented
+        Bundle bundle;
+        bundle.creationTime = m_creationTime;
+        bundle.destination = Ipv4Address(m_destIp);
+        bundle.hop = m_hop + 1;
+        bundle.id = m_bundleId;
+        bundle.source = Ipv4Address(m_sourceIp);
+        return bundle;
+    }
+
+    static BundleHeader fromBundle(const Bundle& bundle) {
+        BundleHeader header;
+        header.SetHop(bundle.hop);
+        header.SetBundleId(bundle.id);
+        header.SetSourceIp(bundle.source);
+        header.SetDestIp(bundle.destination);
+        header.SetCreationTime(bundle.creationTime);
+        return header;
+    }
+
     static TypeId GetTypeId(void)
     {
         static TypeId tid = TypeId("ns3::BundleHeader")
@@ -240,6 +260,7 @@ class FerryRouteHeader : public Header {
     uint8_t m_group;
     uint8_t m_count;
     std::vector<uint32_t> m_waypoints;
+    std::vector<uint64_t> m_expectedArrival;
 
     public:
     FerryRouteHeader() : m_group(0), m_count(0), m_waypoints() {}
@@ -251,6 +272,9 @@ class FerryRouteHeader : public Header {
 
     void SetWaypoints(std::vector<uint32_t> waypoints) { m_waypoints = waypoints; }
     std::vector<uint32_t> GetWaypoints() const { return m_waypoints; }
+
+    void SetExpectedArrival(std::vector<uint64_t> expectedArrival) { m_expectedArrival = expectedArrival; }
+    std::vector<uint64_t> GetExpectedArrival() const { return m_expectedArrival; }
 
     static TypeId GetTypeId(void) {
         static TypeId tid = TypeId("ns3::FerryRouteHeader")
@@ -268,15 +292,16 @@ class FerryRouteHeader : public Header {
 
     virtual uint32_t GetSerializedSize(void) const
     {
-        return 1 + 1 + 4 * m_count;
+        return 1 + 1 + (4 + 8) * m_count;
     }
 
     virtual void Serialize(Buffer::Iterator start) const
     {
         start.WriteU8(m_group);
         start.WriteU8(m_count);
-        for (uint32_t waypoint : m_waypoints) {
-            start.WriteHtonU32(waypoint);
+        for (uint8_t i = 0; i < m_count; i++) {
+            start.WriteHtonU32(m_waypoints[i]);
+            start.WriteHtonU64(m_expectedArrival[i]);
         }
     }
 
@@ -285,8 +310,11 @@ class FerryRouteHeader : public Header {
         m_group = start.ReadU8();
         m_count = start.ReadU8();
         m_waypoints.resize(m_count);
-        for (uint32_t& waypoint : m_waypoints) {
-            waypoint = start.ReadNtohU32();
+        m_expectedArrival.resize(m_count);
+
+        for (uint8_t i = 0; i < m_count; i++) {
+            m_waypoints[i] = start.ReadNtohU32();
+            m_expectedArrival[i] = start.ReadNtohU64();
         }
         return GetSerializedSize();
     }

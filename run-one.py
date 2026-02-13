@@ -6,8 +6,8 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SIRA",
-    "run": "abc",
+    "name": "PIGEON",
+    "run": "test-refactor",
     "simTime": 5000,
     "commRange": 150,
     "ferryHeight": 50,

@@ -49,9 +49,7 @@ class PigeonDtnApp : public BaseDtnApp {
 
     protected:
 
-    // --- CORE LOGIC: Nơi bạn sẽ cài thuật toán Routing --)
-
-    void ReceivePacket(Ptr<Socket> socket);
+    // void ReceivePacket(Ptr<Socket> socket);
 
     private:
     std::vector<std::vector<double>> GetDeadlines();
@@ -153,124 +151,6 @@ std::vector<point2D> PigeonDtnApp::GetServingWaypointRoute() {
     else {
         return {};
     }
-}
-
-
-void PigeonDtnApp::ReceivePacket(Ptr<Socket> socket) {
-    Ptr<Packet> packet;
-    Address from;
-    while ((packet = socket->RecvFrom(from)))
-    {
-        MessageTypeHeader topHeader;
-        packet->RemoveHeader(topHeader);
-
-        FerryVisualizer::logPacket(
-            nodeId[topHeader.GetNodeIP().Get()], // from node id
-            nodeId[m_myIp.Get()], // to node id
-            topHeader.GetMetaName() // metadata
-        );
-        // Tự mình gửi thì bỏ qua (Loopback)
-        if (topHeader.GetNodeIP() == m_myIp) continue;
-
-        auto packetType = topHeader.GetType();
-        if (packetType == MessageTypeHeader::FERRY_BEACON) {
-            NS_LOG_UNCOND(
-                Simulator::Now().GetSeconds()
-                << "s Node " << nodeId[m_myIp.Get()]
-                << ": BEACON from Ferry " << topHeader.GetNodeIP());
-            Time jitter = GetJitter();
-            if (m_nodeType == NODE_TYPE_GROUND) {
-                Simulator::Schedule(jitter, &PigeonDtnApp::SendGroundHello, this, topHeader.GetNodeIP());
-            }
-            continue;
-        }
-        if (packetType == MessageTypeHeader::GROUND_HELLO) {
-            NS_LOG_UNCOND(
-                Simulator::Now().GetSeconds()
-                << "s Node " << nodeId[m_myIp.Get()]
-                << ": HELLO from Ground node " << topHeader.GetNodeIP()
-            );
-
-            if (m_nodeType == NODE_TYPE_FERRY) {
-                Schedule_FerryToGround_Transfer(topHeader.GetNodeIP());
-            }
-            continue;
-        }
-        if (packetType == MessageTypeHeader::BUNDLE) {
-            BundleHeader bundleHeader;
-            packet->RemoveHeader(bundleHeader);
-            Bundle bundle;
-            bundle.hop = bundleHeader.GetHop() + 1;
-            bundle.id = bundleHeader.GetBundleId();
-            bundle.source = bundleHeader.GetSourceIp();
-            bundle.destination = bundleHeader.GetDestIp();
-            bundle.creationTime = bundleHeader.GetCreationTime();
-            NS_LOG_UNCOND(
-                Simulator::Now().GetSeconds()
-                << "s Node " << Ipv4Address(m_myIp)
-                << " received bundle " << Ipv4Address(bundle.source) << "::" << bundle.id
-                << " to " << Ipv4Address(bundle.destination)
-            );
-            if (bundle.destination == m_myIp) {
-                NS_LOG_UNCOND("Bundle reached destination");
-                Time jitter = GetJitter();
-                Simulator::Schedule(jitter, &PigeonDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
-                Report::bundleReachedDestination++;
-                Report::totalHopReachedDestination += bundle.hop;
-                Report::totalHop++;
-                Report::bundleFowardCount++;
-                Report::totalDelay += Simulator::Now() - MicroSeconds(bundle.creationTime);
-                continue;
-            }
-
-            RemoveExpiredBundles();
-            if (m_buffer.size() >= m_maxBufferSize) {
-                NS_LOG_UNCOND("Bundle dropped due to buffer overflow");
-                if (m_nodeType == NODE_TYPE_FERRY && m_mode == MODE_FERRY) {
-                    SchedulePigeonOnBufferFull();
-                }
-                continue; // there are no place for this bundle
-            }
-            NS_LOG_UNCOND("Bundle added to buffer");
-
-            Report::totalHop++;
-            Report::bundleFowardCount++;
-            m_buffer.push_back(bundle);
-            FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-            // RemoveOldBundle();
-
-            Time jitter = GetJitter();
-            Simulator::Schedule(jitter, &PigeonDtnApp::SendBundleAck, this, bundle, topHeader.GetNodeIP());
-            continue;
-        }
-        if (packetType == MessageTypeHeader::BUNDLE_ACK) {
-            BundleAckHeader bundleAckHeader;
-            packet->RemoveHeader(bundleAckHeader);
-            NS_LOG_UNCOND(
-                Simulator::Now().GetSeconds()
-                << "s Node " << nodeId[m_myIp.Get()]
-                << ": BUNDLE ACK from " << topHeader.GetNodeIP());
-            RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
-            FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-            if (m_nodeType == NODE_TYPE_FERRY) {
-                if (nodeType[topHeader.GetNodeIP().Get()] == NODE_TYPE_GROUND)
-                    Schedule_FerryToGround_Transfer(topHeader.GetNodeIP());
-            }
-            if (m_nodeType == NODE_TYPE_GROUND) {
-                Schedule_GroundToFerry_Transfer(topHeader.GetNodeIP());
-            }
-            continue;
-        }
-        if (packetType == MessageTypeHeader::FERRY_ACCEPT_TRANSFER) {
-            NS_LOG_UNCOND(
-                Simulator::Now().GetSeconds()
-                << "s Node " << nodeId[m_myIp.Get()]
-                << ": ACCEPT TRANSFER from ferry node " << topHeader.GetNodeIP()
-            );
-            Schedule_GroundToFerry_Transfer(topHeader.GetNodeIP());
-        }
-    }
-
 }
 
 std::vector<std::vector<double>> PigeonDtnApp::GetDeadlines() {
