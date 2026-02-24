@@ -25,8 +25,7 @@ bool compareBundleTime(const Bundle& b1, const Bundle& b2) {
     return b1.creationTime < b2.creationTime;
 }
 
-class BundleHeader : public Header
-{
+class BundleHeader : public Header {
     private:
     uint8_t m_hop;
     uint32_t m_bundleId; // global bundle id = m_bundleID << 32 + m_source IP
@@ -117,8 +116,7 @@ class BundleHeader : public Header
     }
 };
 
-class BundleAckHeader : public Header
-{
+class BundleAckHeader : public Header {
     private:
     uint32_t m_bundleId; // global bundle id = m_bundleID << 32 + m_source IP
     uint32_t m_sourceIp;
@@ -185,7 +183,6 @@ class BundleAckHeader : public Header
     }
 };
 
-
 class MessageTypeHeader : public Header {
     private:
     uint8_t m_type;
@@ -195,7 +192,6 @@ class MessageTypeHeader : public Header {
     enum MessageType {
         FERRY_BEACON = 1, // ferry broadcast on interval
         FERRY_HELLO = 2, // ferry unicast when receive beacon
-        FERRY_ACCEPT_TRANSFER = 3, // ferry send after tranfering all of the bundle it need to send to the ground node 
 
         GROUND_HELLO = 11, // ground node send when beaconed by ferry
 
@@ -214,7 +210,6 @@ class MessageTypeHeader : public Header {
     std::string GetMetaName() const {
         if (m_type == FERRY_BEACON) return "FERRY_BEACON";
         if (m_type == FERRY_HELLO) return "FERRY_HELLO";
-        if (m_type == FERRY_ACCEPT_TRANSFER) return "FERRY_ACCEPT_TRANSFER";
         if (m_type == GROUND_HELLO) return "GROUND_HELLO";
         if (m_type == BUNDLE) return "BUNDLE";
         if (m_type == BUNDLE_ACK) return "BUNDLE_ACK";
@@ -320,5 +315,79 @@ class FerryRouteHeader : public Header {
     }
 };
 
+class VisitTimeHeader : public Header {
+    private:
+    uint32_t count;
+    std::vector<uint32_t> nodeIps;
+    std::vector<uint64_t> lastVisitTimes;
 
+    public:
+    VisitTimeHeader() : count(0), nodeIps(), lastVisitTimes() {}
+
+    void FromMap(std::unordered_map<uint32_t, uint64_t> map) {
+        count = map.size();
+        nodeIps.resize(count);
+        lastVisitTimes.resize(count);
+        uint32_t i = 0;
+        for (auto it = map.begin(); it != map.end(); it++) {
+            nodeIps[i] = it->first;
+            lastVisitTimes[i] = it->second;
+            i++;
+        }
+    }
+    std::unordered_map<uint32_t, uint64_t> ToMap() {
+        std::unordered_map<uint32_t, uint64_t> map;
+        for (uint32_t i = 0; i < count; i++) {
+            map[nodeIps[i]] = lastVisitTimes[i];
+        }
+        return map;
+    }
+
+    void SetCount(uint32_t count) { this->count = count; }
+    uint32_t GetCount() const { return count; }
+
+    void SetNodeIps(std::vector<uint32_t> nodeIps) { this->nodeIps = nodeIps; }
+    std::vector<uint32_t> GetNodeIps() const { return nodeIps; }
+
+    void SetLastVisitTimes(std::vector<uint64_t> lastVisitTimes) { this->lastVisitTimes = lastVisitTimes; }
+    std::vector<uint64_t> GetLastVisitTimes() const { return lastVisitTimes; }
+
+    static TypeId GetTypeId(void) {
+        static TypeId tid = TypeId("ns3::VisitTimeHeader")
+            .SetParent<Header>()
+            .AddConstructor<VisitTimeHeader>();
+        return tid;
+    }
+
+    virtual TypeId GetInstanceTypeId(void) const { return GetTypeId(); }
+
+    virtual void Print(std::ostream& os) const
+    {
+        os << "Count=" << count;
+    }
+
+    virtual uint32_t GetSerializedSize(void) const {
+        return 4 + (4 + 8) * count;
+    }
+
+    virtual void Serialize(Buffer::Iterator start) const {
+        start.WriteHtonU32(count);
+        for (uint32_t i = 0; i < count; i++) {
+            start.WriteHtonU32(nodeIps[i]);
+            start.WriteHtonU64(lastVisitTimes[i]);
+        }
+    }
+
+    virtual uint32_t Deserialize(Buffer::Iterator start) {
+        count = start.ReadNtohU32();
+        nodeIps.resize(count);
+        lastVisitTimes.resize(count);
+        for (uint32_t i = 0; i < count; i++) {
+            nodeIps[i] = start.ReadNtohU32();
+            lastVisitTimes[i] = start.ReadNtohU64();
+        }
+        return GetSerializedSize();
+    }
+
+};
 #endif // FERRY_MESSAGE

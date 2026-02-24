@@ -9,7 +9,7 @@ using namespace ns3;
 
 struct Config {
     int randSeed = 1337;
-    std::string ALGORITHM_NAME = "SR";
+    std::string ALGORITHM_NAME = "SIRA";
     std::string SIMULATION_RUN = "1";
     // sim config
     double simTime = 5000.0; // seconds
@@ -22,7 +22,8 @@ struct Config {
 
     // node config
     double beaconInterval = 4.0;    // seconds
-    double beaconRandomness = 1.0; // seconds
+    double beaconRandomnes = 1.0; // seconds
+    uint64_t contactTimeout = 3000000; // 3 seconds, time between last contact of 2 node that it accept new beacon and start new protocol session
     uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds
 
     double ferrySpeed = 15.0;      // m/s
@@ -67,7 +68,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("nGrounds", "Number of ground nodes", config.nGrounds);
     cmd.AddValue("nFerrys", "Number of ferry nodes", config.nFerrys);
     // cmd.AddValue("beaconInterval", "Beacon interval", config.beaconInterval);
-    // cmd.AddValue("beaconRandomness", "Beacon randomness", config.beaconRandomness);
+    // cmd.AddValue("beaconRandomnes", "Beacon randomness", config.beaconRandomnes);
     // cmd.AddValue("jitterAmount", "Jitter amount", config.jitterAmount);
     cmd.AddValue("ferrySpeed", "Ferry speed", config.ferrySpeed);
     cmd.AddValue("groundBufferSize", "Ground buffer size", config.groundBufferSize);
