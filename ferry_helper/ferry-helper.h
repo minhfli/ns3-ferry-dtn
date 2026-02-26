@@ -158,9 +158,9 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
 }
 
 uint64_t CalExpectedArrival(const uint32_t node, const std::vector<uint32_t> nodeIps, const std::vector<uint64_t> visitTime) {
-    for (auto nodeIp : nodeIps) {
-        if (nodeIp == node) {
-            return visitTime[nodeIp];
+    for (uint32_t i = 0; i < nodeIps.size(); i++) {
+        if (nodeIps[i] == node) {
+            return visitTime[i];
         }
     }
     return 0;

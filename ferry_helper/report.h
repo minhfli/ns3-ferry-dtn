@@ -69,6 +69,8 @@ namespace Report {
         file << "Ferry Buffer Size: " << config.ferryBufferSize << std::endl;
         file << "Number of Grounds: " << config.nGrounds << std::endl;
         file << "Number of Ferries: " << config.nFerrys << std::endl;
+        file << "Enable Ferry Communication: " << config.enableFerryComm << std::endl;
+        // file << "Waypoint Selection Mode: " << config.waypointSelectMode << std::endl;
 
         file << "--REPORT" << std::endl;
         file << "Bundle Count: " << bundleCount << std::endl;

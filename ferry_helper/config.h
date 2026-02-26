@@ -7,6 +7,10 @@
 
 using namespace ns3;
 
+constexpr uint8_t SELECT_MODE_RANDOM_MINIMUM = 0;
+constexpr uint8_t SELECT_MODE_RANDOM_MAXIMUM = 1;
+constexpr uint8_t SELECT_MODE_PROBALISTC = 2;
+
 struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
@@ -44,7 +48,11 @@ struct Config {
     // visualization config
     uint32_t positionLogInterval = 250; // ms ~ 0.25s
 
+    // waypoint selection config, for Tabaf and its derived algorithm
+    uint32_t waypointSelectMode = 1;
+
 } config;
+
 
 
 struct SimulationVariablePointer {

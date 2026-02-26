@@ -433,6 +433,14 @@ class BufferStateHeader : public Header {
         }
     }
 
+    std::map<uint32_t, uint32_t> ToCountMap() const {
+        std::map<uint32_t, uint32_t> countMap;
+        for (uint32_t i = 0; i < count; i++) {
+            countMap[nodeIps[i]] = messageCount[i];
+        }
+        return countMap;
+    }
+
     bool IsFull() const {
         uint32_t totalMessages = 0;
         for (uint32_t i = 0; i < count; i++) {

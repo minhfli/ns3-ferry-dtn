@@ -7,7 +7,7 @@ PROGRAM = "ferry"
 params = {
     "seed": 1337,
     "name": "SIRA",
-    "run": "test",
+    "run": "with_ferry_com",
     "simTime": 5000,
     "commRange": 150,
     "ferryHeight": 50,
@@ -15,11 +15,11 @@ params = {
     "nGrounds": 25,
     "nFerrys": 3,
     "ferrySpeed": 15,
-    "groundBufferSize": 20,
-    "ferryBufferSize": 30,
+    "groundBufferSize": 50,
+    "ferryBufferSize": 300,
     "bundleGenRate": 60.0,
     "bundleTTL": 300000000,
-    "ferryComm": False,
+    "ferryComm": True,
 }
 
 def build_cmd(program, params):

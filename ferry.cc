@@ -28,6 +28,8 @@
 #include "ferry_app/base-dtn-app.h"
 #include "ferry_app/simple-dtn-app.h"
 #include "ferry_app/pigeon-dtn-app.h"
+#include "ferry_app/tabaf-dtn-app.h"
+
 
 #include <vector>
 #include <algorithm>
@@ -44,6 +46,9 @@ Ptr<BaseDtnApp> createApp() {
     }
     if (config.ALGORITHM_NAME == "PIGEON") {
         return CreateObject<PigeonDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "TABAF") {
+        return CreateObject<TabafDtnApp>();
     }
     return nullptr;
 }
@@ -64,8 +69,8 @@ int main(int argc, char* argv[]) {
     // parse cmd line args
     ParseConfig(argc, argv);
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/log/trace-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/log/report-" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/trace/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("FerryDtnSimulation", LOG_LEVEL_INFO);
 
@@ -166,6 +171,10 @@ int main(int argc, char* argv[]) {
     if (config.ALGORITHM_NAME == "PIGEON") {
         groupCount = config.nFerrys;
     }
+    if (config.ALGORITHM_NAME == "TABAF") {
+        groupCount = 1;
+    }
+
     auto clusters = KMeans(groundNodePos, groupCount);
 
 
