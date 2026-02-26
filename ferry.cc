@@ -192,7 +192,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
     for (uint32_t n = 0; n < config.nFerrys; n++) {
         Ptr<Node> fNode = ferryNode.Get(n);
@@ -215,6 +214,7 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Simulation
     // ==========================================================
+    Report::Init();
     FerryVisualizer::SetUp();
     Simulator::Stop(Seconds(config.simTime)); // Đã set trong app
     Simulator::Run();

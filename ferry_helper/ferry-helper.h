@@ -8,7 +8,7 @@
 #include "ns3/core-module.h"
 
 #include "datatypes.h"
-
+#include "packet-helper.h"
 
 std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double areaWidth) {
     std::vector<point2D> points;
@@ -155,5 +155,14 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
     NS_ASSERT(points.size() == n);
 
     return points;
+}
+
+uint64_t CalExpectedArrival(const uint32_t node, const std::vector<uint32_t> nodeIps, const std::vector<uint64_t> visitTime) {
+    for (auto nodeIp : nodeIps) {
+        if (nodeIp == node) {
+            return visitTime[nodeIp];
+        }
+    }
+    return 0;
 }
 #endif // FERRY_HELPER_H

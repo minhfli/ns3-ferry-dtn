@@ -33,6 +33,7 @@ struct Config {
     double bundleGenRate = 5.0; // 1 bundle every ... seconds
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
+    uint64_t minExpectedArrivalDifference = 500000; // 0.5 seconds (microsec), min expected arrival difference
 
     bool enableFerryComm = false;
 

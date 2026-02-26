@@ -6,6 +6,9 @@
 #include "ns3/internet-module.h"
 
 #include <string>
+#include <map>
+#include <vector>
+#include <unordered_map>
 
 using namespace ns3;
 
@@ -121,10 +124,9 @@ class BundleAckHeader : public Header {
     uint32_t m_bundleId; // global bundle id = m_bundleID << 32 + m_source IP
     uint32_t m_sourceIp;
     uint32_t m_destIp;
-    bool m_allowSendNext; // allow node to send next bundle, this is just for node to signal that its buffer is full
 
     public:
-    BundleAckHeader() : m_bundleId(0), m_sourceIp(0), m_destIp(0), m_allowSendNext(false) {}
+    BundleAckHeader() : m_bundleId(0), m_sourceIp(0), m_destIp(0) {}
     void SetBundleId(uint32_t id) { m_bundleId = id; }
     uint32_t GetBundleId() const { return m_bundleId; }
 
@@ -133,9 +135,6 @@ class BundleAckHeader : public Header {
 
     void SetDestIp(Ipv4Address ip) { m_destIp = ip.Get(); }
     Ipv4Address GetDestIp() const { return Ipv4Address(m_destIp); }
-
-    void SetAllowSendNext(bool allow) { m_allowSendNext = allow; }
-    bool GetAllowSendNext() const { return m_allowSendNext; }
 
     static TypeId GetTypeId(void)
     {
@@ -159,7 +158,7 @@ class BundleAckHeader : public Header {
 
     virtual uint32_t GetSerializedSize(void) const
     {
-        return 4 + 4 + 4 + 1;
+        return 4 + 4 + 4;
     }
 
     virtual void Serialize(Buffer::Iterator start) const
@@ -167,9 +166,6 @@ class BundleAckHeader : public Header {
         start.WriteHtonU32(m_bundleId);
         start.WriteHtonU32(m_sourceIp);
         start.WriteHtonU32(m_destIp);
-        uint8_t flags;
-        flags = m_allowSendNext ? 1 : 0;
-        start.WriteU8(flags);
     }
 
     virtual uint32_t Deserialize(Buffer::Iterator start)
@@ -177,8 +173,6 @@ class BundleAckHeader : public Header {
         m_bundleId = start.ReadNtohU32();
         m_sourceIp = start.ReadNtohU32();
         m_destIp = start.ReadNtohU32();
-        uint8_t flags = start.ReadU8();
-        m_allowSendNext = flags == 1;
         return GetSerializedSize();
     }
 };
@@ -192,11 +186,13 @@ class MessageTypeHeader : public Header {
     enum MessageType {
         FERRY_BEACON = 1, // ferry broadcast on interval
         FERRY_HELLO = 2, // ferry unicast when receive beacon
+        FERRY_ACCEPT_TRANSFER = 3, // ferry send to ferry node to tell it to send bundle
 
         GROUND_HELLO = 11, // ground node send when beaconed by ferry
 
-        BUNDLE = 21, // bundle packet, a ground node sent this
-        BUNDLE_ACK = 22, // bundle ack, a ground node sent this
+        BUNDLE = 21, // bundle packet
+        BUNDLE_ACK = 22, // bundle ack
+        BUNDLE_ACK_FAT = 23, // bundle ack and ferry accept transfer, combined
     };
 
     MessageTypeHeader() : m_type(FERRY_HELLO), m_nodeIp(0) {}
@@ -210,9 +206,11 @@ class MessageTypeHeader : public Header {
     std::string GetMetaName() const {
         if (m_type == FERRY_BEACON) return "FERRY_BEACON";
         if (m_type == FERRY_HELLO) return "FERRY_HELLO";
+        if (m_type == FERRY_ACCEPT_TRANSFER) return "FERRY_ACCEPT_TRANSFER";
         if (m_type == GROUND_HELLO) return "GROUND_HELLO";
         if (m_type == BUNDLE) return "BUNDLE";
         if (m_type == BUNDLE_ACK) return "BUNDLE_ACK";
+        if (m_type == BUNDLE_ACK_FAT) return "BUNDLE_ACK_&_ACCEPT_TRANSFER";
         return "UNKNOWN";
     }
 
@@ -385,6 +383,99 @@ class VisitTimeHeader : public Header {
         for (uint32_t i = 0; i < count; i++) {
             nodeIps[i] = start.ReadNtohU32();
             lastVisitTimes[i] = start.ReadNtohU64();
+        }
+        return GetSerializedSize();
+    }
+
+};
+
+class BufferStateHeader : public Header {
+    private:
+    uint32_t capacity;
+    uint32_t count;
+    std::vector<uint32_t> nodeIps;
+    std::vector<uint32_t> messageCount;
+
+    public:
+    BufferStateHeader() : capacity(0), count(0), nodeIps(), messageCount() {}
+
+    void SetCapacity(uint32_t capacity) { this->capacity = capacity; }
+    uint32_t GetCapacity() const { return capacity; }
+
+    void SetCount(uint32_t count) { this->count = count; }
+    uint32_t GetCount() const { return count; }
+
+    void SetNodeIps(std::vector<uint32_t> nodeIps) { this->nodeIps = nodeIps; }
+    std::vector<uint32_t> GetNodeIps() const { return nodeIps; }
+
+    void SetMessageCount(std::vector<uint32_t> messageCount) { this->messageCount = messageCount; }
+    std::vector<uint32_t> GetMessageCount() const { return messageCount; }
+
+    void FromBuffer(std::vector<Bundle> buffer) {
+        std::map<uint32_t, uint32_t> countMap;
+        for (auto bundle : buffer) {
+            if (countMap.find(bundle.destination.Get()) == countMap.end()) {
+                countMap[bundle.destination.Get()] = 1;
+            }
+            else {
+                countMap[bundle.destination.Get()]++;
+            }
+        }
+        count = countMap.size();
+        nodeIps.resize(count);
+        messageCount.resize(count);
+
+        uint32_t i = 0;
+        for (auto it = countMap.begin(); it != countMap.end(); it++) {
+            nodeIps[i] = it->first;
+            messageCount[i] = it->second;
+            i++;
+        }
+    }
+
+    bool IsFull() const {
+        uint32_t totalMessages = 0;
+        for (uint32_t i = 0; i < count; i++) {
+            totalMessages += messageCount[i];
+        }
+        return totalMessages >= capacity;
+    }
+
+    static TypeId GetTypeId(void) {
+        static TypeId tid = TypeId("ns3::BufferStateHeader")
+            .SetParent<Header>()
+            .AddConstructor<BufferStateHeader>();
+        return tid;
+    }
+
+    virtual TypeId GetInstanceTypeId(void) const { return GetTypeId(); }
+
+    virtual void Print(std::ostream& os) const
+    {
+        os << "Count=" << count;
+    }
+
+    virtual uint32_t GetSerializedSize(void) const {
+        return 4 + 4 + (4 + 4) * count;
+    }
+
+    virtual void Serialize(Buffer::Iterator start) const {
+        start.WriteHtonU32(capacity);
+        start.WriteHtonU32(count);
+        for (uint32_t i = 0; i < count; i++) {
+            start.WriteHtonU32(nodeIps[i]);
+            start.WriteHtonU32(messageCount[i]);
+        }
+    }
+
+    virtual uint32_t Deserialize(Buffer::Iterator start) {
+        capacity = start.ReadNtohU32();
+        count = start.ReadNtohU32();
+        nodeIps.resize(count);
+        messageCount.resize(count);
+        for (uint32_t i = 0; i < count; i++) {
+            nodeIps[i] = start.ReadNtohU32();
+            messageCount[i] = start.ReadNtohU32();
         }
         return GetSerializedSize();
     }

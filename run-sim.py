@@ -8,8 +8,9 @@ import sys
 scenarios = {
     "nGrounds": [ 25],
     "nFerrys": [5],           # Từ 1 đến 15
-    "ferryBufferSize": [ 100,  200],
-    "bundleTTL": [ 300, 600, 900]
+    "ferryBufferSize": [ 100],
+    "bundleTTL": [ 300, 600, 900],
+    "bundleGenRate": [60.0]
 }
 
 # 2. Danh sách thuật toán
@@ -53,30 +54,32 @@ def main():
             for nf in scenarios["nFerrys"]:
                 for fbuf in scenarios["ferryBufferSize"]:
                     for ttl in scenarios["bundleTTL"]:
-                        current_run += 1
-                        
-                        # Tạo chuỗi định danh 'run' để C++ log file không bị đè
-                        # Ví dụ: g25_f5_b100_t300
-                        run_id = f"g{ng}_f{nf}_b{fbuf}_t{ttl}"
-                        
-                        # Xây dựng lệnh command
-                        # Lưu ý: file trong scratch có tên dạng ferry-sira.cc và ferry-pigeon.cc
-                        cmd = (
-                            f"./waf --run \"scratch/ferry-{algo} "
-                            f"--name={algo} "
-                            f"--run={run_id} "
-                            f"--nGrounds={ng} "
-                            f"--nFerrys={nf} "
-                            f"--ferryBufferSize={fbuf} "
-                            f"--bundleTTL={ttl * 1000000} " 
-                            f"--simTime={fixed_params['simTime']} "
-                            f"--commRange={fixed_params['commRange']}\""
-                        )
-                        
-                        print(f"Progress: {current_run}/{total_runs}")
-                        print(cmd)
-                        if not print_only:
-                            run_command(cmd)
+                        for genrate in scenarios["bundleGenRate"]:
+                            current_run += 1
+                            
+                            # Tạo chuỗi định danh 'run' để C++ log file không bị đè
+                            # Ví dụ: g25_f5_b100_t300
+                            run_id = f"g{ng}_f{nf}_b{fbuf}_t{ttl}"
+                            
+                            # Xây dựng lệnh command
+                            # Lưu ý: file trong scratch có tên dạng ferry-sira.cc và ferry-pigeon.cc
+                            cmd = (
+                                f"./waf --run \"scratch/ferry-{algo} "
+                                f"--name={algo} "
+                                f"--run={run_id} "
+                                f"--nGrounds={ng} "
+                                f"--nFerrys={nf} "
+                                f"--ferryBufferSize={fbuf} "
+                                f"--bundleTTL={ttl * 1000000} " 
+                                f"--simTime={fixed_params['simTime']} "
+                                f"--commRange={fixed_params['commRange']}\""
+                                f"--bundleGenRate={genrate}"
+                            )
+                            
+                            print(f"Progress: {current_run}/{total_runs}")
+                            print(cmd)
+                            if not print_only:
+                                run_command(cmd)
 
 if __name__ == "__main__":
     main()
