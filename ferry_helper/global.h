@@ -20,6 +20,8 @@ constexpr uint8_t MODE_PIGEON = 2;
 // ===========================================================================
 
 Ptr<UniformRandomVariable> m_rand;
+// seperate rng for bundle generation, so the bundle generation will be the same across simulations
+Ptr<UniformRandomVariable> bundleGenRand;
 //? ASSUMPTION: all node have these infomation
 std::vector<Ipv4Address> groundNodeIps;
 std::vector<point2D> groundNodePos;

@@ -59,9 +59,6 @@ Ptr<BaseDtnApp> createApp() {
 int main(int argc, char* argv[]) {
     // set random seed so every run is the same
     srand(1337);
-    SeedManager::SetSeed(1337);
-    // initialize global random generator
-    m_rand = CreateObject<UniformRandomVariable>();
 
     // ==========================================================
     // Loggings //! IMPORTANT 
@@ -73,6 +70,12 @@ int main(int argc, char* argv[]) {
     Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("FerryDtnSimulation", LOG_LEVEL_INFO);
+
+    // TODO Tìm hiểu về seed, run, trial trong ns3
+    SeedManager::SetSeed(config.randSeed);
+    // initialize global random generator
+    m_rand = CreateObject<UniformRandomVariable>();
+    bundleGenRand = CreateObject<UniformRandomVariable>();
 
     // ==========================================================
     // Tạo Node

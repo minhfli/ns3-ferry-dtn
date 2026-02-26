@@ -9,6 +9,7 @@
 /**
  * This is my NS3 implementation of https://link.springer.com/article/10.1007/s11036-018-1038-7
  */
+// TODO run and validate this 
 
 class TabafDtnApp : public BaseDtnApp {
     public:

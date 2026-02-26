@@ -196,7 +196,7 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
         m_bundleGenRate = rate;
     }
     double averageBundleTime = 1.0 / m_bundleGenRate;
-    double startTime = 0.1 + m_rand->GetValue(0.0, averageBundleTime);
+    double startTime = 0.1 + bundleGenRand->GetValue(0.0, averageBundleTime);
     Simulator::Schedule(Seconds(startTime + config.startGeneraionTime), &BaseDtnApp::GenerateBundle, this);
 }
 
@@ -510,7 +510,6 @@ void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
 }
 
 void BaseDtnApp::Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp, uint8_t mode) {
-    //TODO FIX HERE
     Time jitter = GetJitter();
     RemoveExpiredBundles();
 
@@ -554,7 +553,7 @@ void BaseDtnApp::GenerateBundle() {
     NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << b.destination);
 
     // generate based on poisson distribution
-    double jitter = m_rand->GetValue(0.0, 1.0);
+    double jitter = bundleGenRand->GetValue(0.0, 1.0);
     double IAT = -log(1.0 - jitter) / m_bundleGenRate;
     Simulator::Schedule(Seconds(IAT), &BaseDtnApp::GenerateBundle, this);
 }
