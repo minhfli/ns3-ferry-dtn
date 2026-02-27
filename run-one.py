@@ -4,21 +4,21 @@ import os
 PROGRAM = "ferry"
 
 params = {
-    "seed": 1337,
-    "name": "PIGEON", # algorithm name
-    "run": "cluster_test", # run name for log file
-    "simTime": 5000,
+    "seed": 392826688,
+    "name": "TABAF", # algorithm name
+    "run": "debug", # run name for log file
+    "simTime": 500,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 5000,
     "nGrounds": 25,
-    "nFerrys": 15,
+    "nFerrys": 10,
     "ferrySpeed": 15,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,
-    "bundleGenRate": 60.0, # packets/sec
+    "bundleGenRate": 30.0, # packets/sec
     "bundleTTL": 600000000, # microsec
-    "ferryComm": False, # enable communication between ferry
+    "ferryComm": True, # enable communication between ferry
 }
 
 def build_cmd(program, params):

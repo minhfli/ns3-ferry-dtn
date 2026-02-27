@@ -23,7 +23,10 @@ Ptr<UniformRandomVariable> m_rand;
 // seperate rng for bundle generation, so the bundle generation will be the same across simulations
 Ptr<UniformRandomVariable> bundleGenRand;
 //? ASSUMPTION: all node have these infomation
+
+// array of node ip !!! THIS IS NOT A MAP
 std::vector<Ipv4Address> groundNodeIps;
+// array of node position !!! THIS IS NOT A MAP
 std::vector<point2D> groundNodePos;
 // mapping from IP to type
 std::unordered_map<uint32_t, uint8_t> nodeType;

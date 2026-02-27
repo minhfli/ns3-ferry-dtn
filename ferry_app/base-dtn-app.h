@@ -411,6 +411,8 @@ void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neigh
 #pragma region Scheduling
 
 Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
+    if (m_buffer.empty()) return nullptr;
+
     if (m_groupId != nodeGroup[neighborIp.Get()]) {
         // send bundle that belongs to ground node with ferry group id
         for (auto& bundle : m_buffer) {
@@ -429,6 +431,8 @@ Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
 }
 
 Bundle* BaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
+    if (m_buffer.empty()) return nullptr;
+
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false && bundle.destination == neighborIp) {
             return &bundle;
@@ -438,6 +442,7 @@ Bundle* BaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
 }
 
 Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
+    if (m_buffer.empty()) return nullptr;
 
     // filter node that neighbor will go to it faster
     std::vector<std::pair<uint32_t, uint32_t>> nodeFilter; // first: nodeip, second: count
@@ -454,6 +459,7 @@ Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
 
     // count
     for (Bundle& bundle : m_buffer) {
+        if (bundle.flag_waitingAck) continue;
         for (auto& node : nodeFilter) {
             if (bundle.destination.Get() == node.first) {
                 node.second++;

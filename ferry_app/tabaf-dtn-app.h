@@ -27,6 +27,8 @@ class TabafDtnApp : public BaseDtnApp {
 
     protected:
 
+    virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
+
     // virtual void ReceivePacket(Ptr<Socket> socket);
     virtual void BundleAckMobilityCallBack(Bundle b) override;
     virtual void CalculateNodeScore();
@@ -176,4 +178,50 @@ std::vector<point2D> TabafDtnApp::GetServingWaypointRoute() {
     return std::vector<point2D>{ nodePos(m_nextServingNode)};
 }
 
+Bundle* TabafDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
+    if (m_buffer.empty()) return nullptr;
+
+    // filter node that neighbor will go to it faster
+    auto neighbor = m_neighbor[neighborIp.Get()];
+
+    uint32_t neighbor_target = neighbor.route[neighbor.route.size() - 1];
+
+    if (neighbor_target != m_nextServingNode) { // 2 node have different target
+        for (Bundle& bundle : m_buffer) {
+            if (!bundle.flag_waitingAck && bundle.destination.Get() == neighbor_target) {
+                return &bundle; // send bundle that can go straight to destination
+            }
+        }
+        point2D neighborTargetPos = nodePos(neighbor_target);
+        point2D myTargetPos = nodePos(m_nextServingNode);
+
+        for (Bundle& bundle : m_buffer) {
+            if (bundle.flag_waitingAck) continue;
+
+            point2D bundlePos = nodePos(bundle.destination.Get());
+            if (dist(neighborTargetPos, bundlePos) < dist(myTargetPos, bundlePos)) {
+                if (neighbor.bufferState.find(bundle.destination.Get()) != neighbor.bufferState.end()) {
+                    return &bundle; // send bundle to node that have better chance to reach
+                }
+            }
+        }
+    }
+    else { // 2 node going to the same target
+        uint64_t expect2 = neighbor.expectedArrival[neighbor.expectedArrival.size() - 1];
+
+        Vector3D currentPos = m_mobility->GetPosition();
+        point2D relative = { nodePos(m_nextServingNode).x - currentPos.x,
+                             nodePos(m_nextServingNode).y - currentPos.y };
+        double dist = relative.length();
+        uint64_t expect1 = Simulator::Now().GetMicroSeconds() + dist / config.ferrySpeed * 1000000.0;
+        if (expect1 - expect2 > config.minExpectedArrivalDifference) {
+            for (Bundle& bundle : m_buffer) {
+                if (!bundle.flag_waitingAck && bundle.destination.Get() == m_nextServingNode) {
+                    return &bundle; // send bundle
+                }
+            }
+        }
+    }
+    return nullptr;
+}
 #endif 
