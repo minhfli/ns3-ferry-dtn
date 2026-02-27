@@ -18,6 +18,8 @@ struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
     std::string SIMULATION_RUN = "1";
+    std::string REPORT_BATCH = "default";
+    bool enableVisualization = true;
     // sim config
     double simTime = 5000.0; // seconds
     double startGeneraionTime = 300.0; // seconds, warmup before
@@ -84,6 +86,9 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("seed", "Random seed", config.randSeed);
     cmd.AddValue("name", "Simulation Name", config.ALGORITHM_NAME);
     cmd.AddValue("run", "Simulation Run", config.SIMULATION_RUN);
+    cmd.AddValue("batch", "Report batch name", config.REPORT_BATCH);
+    cmd.AddValue("vi", "Enable visualization", config.enableVisualization);
+    // -- general config --
     cmd.AddValue("simTime", "Simulation time", config.simTime);
     cmd.AddValue("commRange", "Communication range", config.commRange);
     cmd.AddValue("ferryHeight", "Ferry height", config.ferryHeight);

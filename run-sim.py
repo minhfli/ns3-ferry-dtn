@@ -6,11 +6,14 @@ import copy
 from datetime import datetime
 
 PROGRAM = "ferry"
+BATCH = "20260228_3am"
 
 # ============================================================
 # Base parameters (giá trị mặc định - không sweep)
 # ============================================================
 base_params = {
+    "batch": BATCH,
+    "vi": False,
     "seed": 0,  # sẽ được override
     "name": "PIGEON",
     "run": "exp",
@@ -26,20 +29,20 @@ base_params = {
 param_grid = {
     "name": ["SIRA", "PIGEON", "TABAF"],
 
-    "nGrounds": [25],
-    "nFerrys": [10],
+    "nGrounds": [30],
+    "nFerrys": [1,3,5,10,12,15],
 
     "groundBufferSize": [50],
-    "ferryBufferSize": [300],
+    "ferryBufferSize": [300, 500, 1000],
 
-    "bundleGenRate": [30.0],
-    "bundleTTL": [600000000],
+    "bundleGenRate": [5.0, 10.0, 20.0,30.0, 60.0],
+    "bundleTTL": [600000000, 900000000],
 
     "ferryComm": [False, True],
 }
 
 # Số seed chạy cho mỗi cấu hình
-N_SEEDS = 5
+N_SEEDS = 3
 
 
 # ============================================================
@@ -83,7 +86,7 @@ if __name__ == "__main__":
 
     # Tạo batch id để phân biệt các lần chạy khác nhau
     batch_id = datetime.now().strftime("%Y%m%d_%H")
-
+        
     # Sinh danh sách seed cố định (đảm bảo công bằng giữa thuật toán)
     random.seed(1337)
     seed_list = [random.randint(1, 10**9) for _ in range(N_SEEDS)]

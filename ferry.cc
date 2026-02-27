@@ -67,8 +67,8 @@ int main(int argc, char* argv[]) {
     // parse cmd line args
     ParseConfig(argc, argv);
 
-    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/trace/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
-    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/trace/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     LogComponentEnable("FerryDtnSimulation", LOG_LEVEL_INFO);
 

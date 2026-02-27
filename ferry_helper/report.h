@@ -37,7 +37,6 @@ namespace Report {
         }
     }
     void Export() {
-
         for (uint32_t i = 0; i < config.nGrounds; i++) {
             for (uint32_t j = 0; j < config.nFerrys; j++) {
                 double deliverRate = (double)100.0 * nodeBundleReachedDestination[i][j] / nodeBundleCount[i][j];
@@ -58,13 +57,13 @@ namespace Report {
 
         std::ofstream file(reportFileName);
         file << "--CONFIG" << std::endl;
-        file << "Simulation Time: " << config.simTime << " s" << std::endl;
-        file << "Area Width: " << config.areaWidth << " m" << std::endl;
-        file << "Bundle Generation Rate: " << config.bundleGenRate << " s/bundle" << std::endl;
-        file << "Bundle TTL: " << config.bundleTTL / 1000000 << " seconds" << std::endl;
-        file << "Comm Range: " << config.commRange << " m" << std::endl;
-        file << "Ferry Height: " << config.ferryHeight << " m" << std::endl;
-        file << "Ferry Speed: " << config.ferrySpeed << " m/s" << std::endl;
+        file << "Simulation Time (s): " << config.simTime << std::endl;
+        file << "Area Width (m): " << config.areaWidth << std::endl;
+        file << "Bundle Generation Rate (s/bundle): " << config.bundleGenRate << std::endl;
+        file << "Bundle TTL(s): " << config.bundleTTL / 1000000 << std::endl;
+        file << "Comm Range (m): " << config.commRange << std::endl;
+        file << "Ferry Height (m): " << config.ferryHeight << std::endl;
+        file << "Ferry Speed (m/s)): " << config.ferrySpeed << std::endl;
         file << "Ground Buffer Size: " << config.groundBufferSize << std::endl;
         file << "Ferry Buffer Size: " << config.ferryBufferSize << std::endl;
         file << "Number of Grounds: " << config.nGrounds << std::endl;
@@ -75,8 +74,8 @@ namespace Report {
         file << "--REPORT" << std::endl;
         file << "Bundle Count: " << bundleCount << std::endl;
         file << "Bundle Reached Destination: " << bundleReachedDestination << std::endl;
-        file << "Total Delay: " << totalDelay.GetSeconds() << " seconds" << std::endl;
-        file << "Average Delay: " << totalDelay.GetSeconds() / bundleCount << " seconds" << std::endl;
+        file << "Total Delay (s): " << totalDelay.GetSeconds() << std::endl;
+        file << "Average Delay (s): " << totalDelay.GetSeconds() / bundleCount << std::endl;
         if (bundleReachedDestination == 0)
             file << "Average Hops: 0" << std::endl;
         else

@@ -759,6 +759,7 @@ void BaseDtnApp::OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Pa
 //* ----- FERRY -----
 
 void BaseDtnApp::OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (!config.enableFerryComm) return;
     if (m_nodeType == NODE_TYPE_GROUND) return;
 
     if (m_myIp < sourceIp) { // smaller ip node start the protocol

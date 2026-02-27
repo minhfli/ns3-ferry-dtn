@@ -40,6 +40,7 @@ namespace FerryVisualizer {
 
 
     void SetUp() {
+        if (!config.enableVisualization) return;
         file.open(vizFileName, std::ios::out);
         file << "--Declare" << std::endl;
         logDeclare();
@@ -48,10 +49,12 @@ namespace FerryVisualizer {
         Simulator::Schedule(Time(0), &logPosition);
     }
     void CleanUp() {
+        if (!config.enableVisualization) return;
         file.close();
     }
 
     void logInit() {
+        if (!config.enableVisualization) return;
         file << "Time=0" << std::endl;
         for (uint32_t i = 0; i < simVar.nGrounds; i++) {
             file << "event=buffer"
@@ -69,8 +72,9 @@ namespace FerryVisualizer {
         }
     }
 
-
     void logDeclare() {
+        if (!config.enableVisualization) return;
+
         std::unordered_map<std::string, uint32_t> id_to_group;
         std::unordered_map<std::string, uint32_t> id_to_ip;
         for (const auto& [key, value] : nodeId) {
@@ -109,6 +113,8 @@ namespace FerryVisualizer {
     }
 
     void logPosition() {
+        if (!config.enableVisualization) return;
+
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         // open file
         if (Simulator::Now() == 0) {
@@ -129,12 +135,15 @@ namespace FerryVisualizer {
     }
 
     void logPacket(const std::string& src, const std::string& dest, const std::string meta) {
+        if (!config.enableVisualization) return;
 
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         file << "event=send" << " source=" << src << " dest=" << dest << " meta=" << meta << std::endl;
     }
 
     void logBuffer(const std::string& node, const std::vector<Bundle>& list) {
+        if (!config.enableVisualization) return;
+
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         file << "event=buffer" << " node=" << node << " list=";
         for (auto bundle : list) {
@@ -145,6 +154,8 @@ namespace FerryVisualizer {
     }
 
     void logRoute(const std::string& node, const std::vector<point2D> waypoints) {
+        if (!config.enableVisualization) return;
+
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         file << "event=route" << " node=" << node << " tour=";
         for (auto waypoint : waypoints) {
@@ -171,6 +182,8 @@ namespace FerryVisualizer {
     }
 
     void logBeacon(std::string node) {
+        if (!config.enableVisualization) return;
+
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
         file << "event=beacon" << " node=" << node << std::endl;
     }
