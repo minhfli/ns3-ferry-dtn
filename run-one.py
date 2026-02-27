@@ -1,25 +1,24 @@
 import subprocess
 import os
 
-NS3_DIR = "~/ns-allinone-3.30.1/ns-3.30.1"   # chỉnh lại cho đúng
 PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SIRA",
-    "run": "with_ferry_com",
+    "name": "PIGEON", # algorithm name
+    "run": "cluster_test", # run name for log file
     "simTime": 5000,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 5000,
     "nGrounds": 25,
-    "nFerrys": 3,
+    "nFerrys": 15,
     "ferrySpeed": 15,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,
-    "bundleGenRate": 60.0,
-    "bundleTTL": 300000000,
-    "ferryComm": True,
+    "bundleGenRate": 60.0, # packets/sec
+    "bundleTTL": 600000000, # microsec
+    "ferryComm": False, # enable communication between ferry
 }
 
 def build_cmd(program, params):
@@ -36,7 +35,7 @@ def run_command(cmd):
         print(f"Error executing command: {e}")
         
 if __name__ == "__main__":
-    if os.path.basename(os.getcwd()) == "scratch": # Thay bằng tên thư mục của bạn nếu cần
+    if os.path.basename(os.getcwd()) == "scratch":
          os.chdir("..")
          
     cmd = build_cmd(PROGRAM, params)

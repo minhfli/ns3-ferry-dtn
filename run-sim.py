@@ -1,85 +1,137 @@
-from cmd import Cmd
 import subprocess
 import os
-import sys
+import itertools
+import random
+import copy
+from datetime import datetime
 
+PROGRAM = "ferry"
 
-# 1. Cấu hình các dải giá trị cần thử nghiệm (Grid Search)
-scenarios = {
-    "nGrounds": [ 25],
-    "nFerrys": [5],           # Từ 1 đến 15
-    "ferryBufferSize": [ 100],
-    "bundleTTL": [ 300, 600, 900],
-    "bundleGenRate": [60.0]
-}
-
-# 2. Danh sách thuật toán
-algorithms = ["sira", "pigeon"]
-
-# 3. Tham số cố định
-fixed_params = {
+# ============================================================
+# Base parameters (giá trị mặc định - không sweep)
+# ============================================================
+base_params = {
+    "seed": 0,  # sẽ được override
+    "name": "PIGEON",
+    "run": "exp",
     "simTime": 5000,
-    "commRange": 150
+    "commRange": 150,
+    "ferryHeight": 50,
+    "areaWidth": 5000,
 }
 
+# ============================================================
+# Parameter sweep grid (chỉ sửa ở đây nếu muốn mở rộng)
+# ============================================================
+param_grid = {
+    "name": ["SIRA", "PIGEON", "TABAF"],
+
+    "nGrounds": [25],
+    "nFerrys": [15],
+
+    "groundBufferSize": [50],
+    "ferryBufferSize": [300],
+
+    "bundleGenRate": [30.0],
+    "bundleTTL": [600000000],
+
+    "ferryComm": [False, True],
+}
+
+# Số seed chạy cho mỗi cấu hình
+N_SEEDS = 5
+
+
+# ============================================================
+# Utility: build waf command
+# ============================================================
+def build_cmd(program, params):
+    args = " ".join(f"--{k}={v}" for k, v in params.items())
+    return f'./waf --run "{program} {args}"'
+
+
+# ============================================================
+# Run command
+# ============================================================
 def run_command(cmd):
     print(f"\n--- Running: {cmd} ---")
     try:
-        # Sử dụng shell=True để chạy được lệnh ./waf
         process = subprocess.Popen(cmd, shell=True)
         process.wait()
     except Exception as e:
         print(f"Error executing command: {e}")
 
-def main():
-    # Di chuyển ra thư mục gốc của NS-3 để chạy ./waf
-    # Nếu file python này đã nằm ở gốc rồi thì có thể bỏ qua dòng os.chdir
-    if os.path.basename(os.getcwd()) == "scratch": # Thay bằng tên thư mục của bạn nếu cần
-         os.chdir("..")
 
-    # Đếm tổng số lần chạy để theo dõi tiến độ
-    total_runs = len(algorithms) * len(scenarios["nGrounds"]) * \
-                 len(scenarios["nFerrys"]) * len(scenarios["ferryBufferSize"]) * \
-                 len(scenarios["bundleTTL"])
-    current_run = 0
+# ============================================================
+# Generate parameter combinations (Cartesian product)
+# ============================================================
+def generate_param_combinations(grid):
+    keys = grid.keys()
+    values = grid.values()
+    for combination in itertools.product(*values):
+        yield dict(zip(keys, combination))
 
-    # Parse arguments from cmd
-    print_only = False
-    if len(sys.argv) > 1 and sys.argv[1] == "--print-only":
-        print_only = True
-    
 
-    for algo in algorithms:
-        for ng in scenarios["nGrounds"]:
-            for nf in scenarios["nFerrys"]:
-                for fbuf in scenarios["ferryBufferSize"]:
-                    for ttl in scenarios["bundleTTL"]:
-                        for genrate in scenarios["bundleGenRate"]:
-                            current_run += 1
-                            
-                            # Tạo chuỗi định danh 'run' để C++ log file không bị đè
-                            # Ví dụ: g25_f5_b100_t300
-                            run_id = f"g{ng}_f{nf}_b{fbuf}_t{ttl}"
-                            
-                            # Xây dựng lệnh command
-                            # Lưu ý: file trong scratch có tên dạng ferry-sira.cc và ferry-pigeon.cc
-                            cmd = (
-                                f"./waf --run \"scratch/ferry-{algo} "
-                                f"--name={algo} "
-                                f"--run={run_id} "
-                                f"--nGrounds={ng} "
-                                f"--nFerrys={nf} "
-                                f"--ferryBufferSize={fbuf} "
-                                f"--bundleTTL={ttl * 1000000} " 
-                                f"--simTime={fixed_params['simTime']} "
-                                f"--commRange={fixed_params['commRange']}\""
-                                f"--bundleGenRate={genrate}"
-                            )
-                            
-                            print(f"Progress: {current_run}/{total_runs}")
-                            print(cmd)
-                            if not print_only:
-                                run_command(cmd)
-
+# ============================================================
+# Main
+# ============================================================
 if __name__ == "__main__":
-    main()
+
+    # đảm bảo đang ở root ns-3 (không ở scratch/)
+    if os.path.basename(os.getcwd()) == "scratch":
+        os.chdir("..")
+
+    # Tạo batch id để phân biệt các lần chạy khác nhau
+    batch_id = datetime.now().strftime("%Y%m%d_%H")
+
+    # Sinh danh sách seed cố định (đảm bảo công bằng giữa thuật toán)
+    random.seed(1337)
+    seed_list = [random.randint(1, 10**9) for _ in range(N_SEEDS)]
+
+    # Sinh toàn bộ cấu hình
+    all_configs = list(generate_param_combinations(param_grid))
+
+    print("==============================================")
+    print(f"Total parameter configurations: {len(all_configs)}")
+    print(f"Seeds per configuration: {N_SEEDS}")
+    print(f"Total runs: {len(all_configs) * N_SEEDS}")
+    print("==============================================")
+
+    for config_id, config in enumerate(all_configs):
+
+        for seed_id, random_seed in enumerate(seed_list):
+
+            params = copy.deepcopy(base_params)
+            params.update(config)
+
+            # set seed
+            params["seed"] = random_seed
+
+            algo = params["name"]
+
+            # ====================================================
+            # Tên run = tên file log
+            # ====================================================
+            params["run"] = (
+                f"{batch_id}"
+                f"_{algo}"
+                f"_G{params['nGrounds']}"
+                f"_F{params['nFerrys']}"
+                f"_R{params['bundleGenRate']}"
+                f"_C{int(params['ferryComm'])}"
+                f"_seed{seed_id}"
+            )
+
+            cmd = build_cmd(PROGRAM, params)
+
+            print("\n===================================================")
+            print(f"Config {config_id + 1}/{len(all_configs)}")
+            print(f"Seed {seed_id + 1}/{N_SEEDS}")
+            print("Parameters:")
+            for k, v in params.items():
+                print(f"  {k}: {v}")
+            print("===================================================")
+
+            run_command(cmd)
+
+    print("\nAll experiments finished.")

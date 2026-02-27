@@ -148,7 +148,6 @@ class BaseDtnApp : public Application {
     uint8_t m_nodeType; // 0: Ground, 1: Ferry
     uint8_t m_groupId; // for clustering
     uint8_t m_mode; // curent operation mode
-    bool m_enableFerryComm; // enable communication between ferry 
 
     std::unordered_map<uint32_t, NeighborInfomation> m_neighbor;
     std::unordered_map<uint32_t, uint64_t> m_visitTime;
@@ -440,8 +439,6 @@ Bundle* BaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
 
 Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
 
-    NS_LOG_UNCOND("check: node " << nodeId[m_myIp.Get()] << "selecting bundle to neighbor: " << nodeId[neighborIp.Get()]);
-
     // filter node that neighbor will go to it faster
     std::vector<std::pair<uint32_t, uint32_t>> nodeFilter; // first: nodeip, second: count
     auto neighbor = m_neighbor[neighborIp.Get()];
@@ -510,6 +507,8 @@ void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
 }
 
 void BaseDtnApp::Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp, uint8_t mode) {
+    if (!config.enableFerryComm)
+        return;
     Time jitter = GetJitter();
     RemoveExpiredBundles();
 
@@ -518,7 +517,6 @@ void BaseDtnApp::Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp, uint8_t mod
         Simulator::Schedule(jitter, &BaseDtnApp::SendBundle, this, *bundlePtr, ferryIp);
         return;
     }
-    NS_LOG_UNCOND("check3");
     // received accept transfer = the neighbor node has no bundle to send
     // if current node has no bundle to send -> end protocol
     if (mode == FTF_MODE_RECEIVED_ACCEPT) return;
@@ -550,7 +548,7 @@ void BaseDtnApp::GenerateBundle() {
     RemoveOldBundle();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
-    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << b.destination);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << nodeId[dest.Get()]);
 
     // generate based on poisson distribution
     double jitter = bundleGenRand->GetValue(0.0, 1.0);
@@ -687,8 +685,7 @@ void BaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     m_neighbor[source].lastContactTime = currentTime;
 
     OnGroundReceiveBeacon(sourceIp, packet);
-    if (config.enableFerryComm)
-        OnFerryReceiveBeacon(sourceIp, packet);
+    OnFerryReceiveBeacon(sourceIp, packet);
 }
 
 void BaseDtnApp::OnGroundReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
@@ -756,7 +753,6 @@ void BaseDtnApp::OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Pa
 //* ----- FERRY -----
 
 void BaseDtnApp::OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
-    if (!config.enableFerryComm) return;
     if (m_nodeType == NODE_TYPE_GROUND) return;
 
     if (m_myIp < sourceIp) { // smaller ip node start the protocol
@@ -796,7 +792,8 @@ void BaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pack
         Simulator::Schedule(jitter, &BaseDtnApp::SendFerryHello, this, sourceIp);
     }
     else {
-        Schedule_FerryToFerry_Transfer(sourceIp, FTF_MODE_NOT_RECEIVED_ACCEPT);
+        if (config.enableFerryComm)
+            Schedule_FerryToFerry_Transfer(sourceIp, FTF_MODE_NOT_RECEIVED_ACCEPT);
     }
 }
 

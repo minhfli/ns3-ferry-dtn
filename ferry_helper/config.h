@@ -11,26 +11,38 @@ constexpr uint8_t SELECT_MODE_RANDOM_MINIMUM = 0;
 constexpr uint8_t SELECT_MODE_RANDOM_MAXIMUM = 1;
 constexpr uint8_t SELECT_MODE_PROBALISTC = 2;
 
+constexpr uint8_t PIGEON_RETURN_CONTINUE = 0;
+constexpr uint8_t PIGEON_RETURN_CLOSET = 1;
+
 struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
     std::string SIMULATION_RUN = "1";
     // sim config
     double simTime = 5000.0; // seconds
-    double startGeneraionTime = 300.0; // seconds
+    double startGeneraionTime = 300.0; // seconds, warmup before
     double commRange = 150.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 4000; // meters
+    double areaPadding = 100; // padding to avoid node on edge of the map
     uint32_t nGrounds = 25;
     uint32_t nFerrys = 5;
 
     // node config
-    double beaconInterval = 4.0;    // seconds
+    double beaconInterval = 5.0;    // seconds
     double beaconRandomnes = 1.0; // seconds
     uint64_t contactTimeout = 3000000; // 3 seconds, time between last contact of 2 node that it accept new beacon and start new protocol session
     uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds
 
+    // mobility
     double ferrySpeed = 15.0;      // m/s
+    /**
+    * if ferry node is scheduled to hover (stay at the same place), how long does it wait to reschedule it mobility ?
+    * this is to avoid too frequently scheduling, with especially with pigeon dtn app
+    * */
+    double mobilityWaitTime = 5.0; // (seconds) 
+
+    // bundles
     uint32_t groundBufferSize = 100; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
@@ -48,8 +60,10 @@ struct Config {
     // visualization config
     uint32_t positionLogInterval = 250; // ms ~ 0.25s
 
+    uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
+
     // waypoint selection config, for Tabaf and its derived algorithm
-    uint32_t waypointSelectMode = 1;
+    uint32_t TABAF_waypointSelectMode = SELECT_MODE_RANDOM_MAXIMUM;
 
 } config;
 
@@ -86,6 +100,10 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("bundleTTL", "Bundle TTL", config.bundleTTL);
     cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);
+
+    // ----- algorithm specific config -----
+    cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);
+    cmd.AddValue("tabafSelect", "Waypoint selection mode", config.TABAF_waypointSelectMode);
 
     cmd.Parse(argc, argv);
     return;

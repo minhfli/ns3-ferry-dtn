@@ -253,7 +253,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
         if (time < 0.1) {
             // handle special case: when there only one node
             // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
-            m_mobilityScheduleEvent = Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+            m_mobilityScheduleEvent = Simulator::Schedule(Seconds(config.mobilityWaitTime), &PigeonDtnApp::ScheduleNextWaypoint, this);
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
             return;
         }
@@ -274,6 +274,22 @@ void PigeonDtnApp::SchedulePigeonWaypoint() {
     Vector3D currentPos = m_mobility->GetPosition();
     if (m_pigeonNextIndex >= m_pigeonOrder.size()) {
         m_mode = MODE_FERRY;
+        if (config.PIGEON_return_mode == PIGEON_RETURN_CONTINUE) {
+            // do nothing
+        }
+        if (config.PIGEON_return_mode == PIGEON_RETURN_CLOSET) {
+            Vector3D currentPos = m_mobility->GetPosition();
+            point2D pos = { currentPos.x, currentPos.y };
+            //find closest
+            m_ferryNextIndex = 0;
+            uint32_t i = 0;
+            for (point2D point : m_ferryPoints) {
+                if (dist({ pos }, point) < dist(pos, m_ferryPoints[m_ferryNextIndex])) {
+                    m_ferryNextIndex = i;
+                }
+                i++;
+            }
+        }
         ScheduleFerryWaypoint();
         NS_LOG_UNCOND("Switch to ferry mode");
         return;

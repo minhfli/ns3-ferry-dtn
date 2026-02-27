@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cmath>
 #include <unordered_map>
+#include <set>
 
 using namespace ns3;
 
@@ -125,7 +126,7 @@ int main(int argc, char* argv[]) {
     // ==========================================================
 
     // Generate ground node positions
-    double areaPadding = 100; // padding to avoid node on edge of the map
+    double areaPadding = config.areaPadding; // padding to avoid node on edge of the map
     double rangePadding = config.commRange * 2.0 + 20; // padding tp avoid node near communication range
     groundNodePos =
         PoissonDisk_RandomSample(config.nGrounds, rangePadding, config.areaWidth - areaPadding * 2);
@@ -142,12 +143,19 @@ int main(int argc, char* argv[]) {
     groundMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
     groundMobility.Install(GroundNodes);
 
+    // Generate ferry starting position
+    auto ferryNodePos = PoissonDisk_RandomSample(config.nFerrys, 0, config.areaWidth - areaPadding * 2);
+
     // Cấu hình Ferry bay
     MobilityHelper ferryMobility;
     ferryMobility.SetPositionAllocator("ns3::ListPositionAllocator");
-    Ptr<ListPositionAllocator> lpa = CreateObject<ListPositionAllocator>();
-    lpa->Add(Vector(config.areaWidth / 2, config.areaWidth / 2, config.ferryHeight)); // Bắt đầu tại chính giữa, cao 50m
-    ferryMobility.SetPositionAllocator(lpa);
+    Ptr<ListPositionAllocator> ferry_lpa = CreateObject<ListPositionAllocator>();
+    for (uint32_t i = 0; i < config.nFerrys; i++) {
+        ferryNodePos[i].x += areaPadding;
+        ferryNodePos[i].y += areaPadding;
+        ferry_lpa->Add(Vector(ferryNodePos[i].x, ferryNodePos[i].y, config.ferryHeight));
+    }
+    ferryMobility.SetPositionAllocator(ferry_lpa);
     ferryMobility.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
     ferryMobility.Install(ferryNode);
 
@@ -178,8 +186,7 @@ int main(int argc, char* argv[]) {
         groupCount = 1;
     }
 
-    auto clusters = KMeans(groundNodePos, groupCount);
-
+    auto clusters = Clustering::KMeans(groundNodePos, groupCount);
 
     for (uint32_t group = 0; group < groupCount; group++) {
         auto& cluster = clusters[group];
@@ -205,6 +212,11 @@ int main(int argc, char* argv[]) {
     }
 
     // Cài App cho Ferry (Index trong container i là config.nGrounds)
+    std::set<uint32_t> clusters_to_assign;
+    for (uint32_t n = 0; n < config.nFerrys; n++) {
+        clusters_to_assign.insert(n % groupCount);
+    }
+
     for (uint32_t n = 0; n < config.nFerrys; n++) {
         Ptr<Node> fNode = ferryNode.Get(n);
 
@@ -214,7 +226,26 @@ int main(int argc, char* argv[]) {
 
         nodeType[address.Get()] = NODE_TYPE_FERRY;
         nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
-        nodeGroup[address.Get()] = n % groupCount;
+
+        if (groupCount == 1) {
+            nodeGroup[address.Get()] = 0;
+        }
+        else {
+            //assign closest cluster
+            double minDist = std::numeric_limits<double>::max();
+            uint32_t closestCluster = 0;
+            for (auto i : clusters_to_assign) {
+                point2D centroid = getCentroid(groundNodePos, clusters[i], { 0,0 });
+                double distance = dist(ferryNodePos[n], centroid);
+                if (distance < minDist) {
+                    minDist = distance;
+                    closestCluster = i;
+                }
+            }
+
+            nodeGroup[address.Get()] = closestCluster;
+            clusters_to_assign.erase(closestCluster);
+        }
 
         fNode->AddApplication(app);
         app->Setup(fNode, socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);

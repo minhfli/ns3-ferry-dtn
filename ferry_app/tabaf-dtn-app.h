@@ -9,7 +9,6 @@
 /**
  * This is my NS3 implementation of https://link.springer.com/article/10.1007/s11036-018-1038-7
  */
-// TODO run and validate this 
 
 class TabafDtnApp : public BaseDtnApp {
     public:
@@ -57,6 +56,8 @@ void TabafDtnApp::ScheduleNextWaypoint() {
     }
 
     ChooseNextServingNode();
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 
     point2D waypoint = nodePos(m_nextServingNode);
     Vector3D currentPos = m_mobility->GetPosition();
@@ -64,7 +65,15 @@ void TabafDtnApp::ScheduleNextWaypoint() {
     point2D relative = { waypoint.x - currentPos.x,
                          waypoint.y - currentPos.y };
 
-    double timeToReach = relative.length() * 1000000.0 / config.ferrySpeed;
+    double timeToReach = relative.length() / config.ferrySpeed;
+    if (timeToReach < 1.0) {
+        timeToReach = 1.0;
+        m_mobility->SetVelocity(Vector3D(0.0, 0.0, 0.0));
+    }
+    else {
+        m_mobility->SetVelocity(Vector3D(relative.x / timeToReach, relative.y / timeToReach, 0.0));
+    }
+
     m_mobilityScheduleEvent = Simulator::Schedule(Seconds(timeToReach), &TabafDtnApp::ScheduleNextWaypoint, this);
 
 }
@@ -114,7 +123,7 @@ void TabafDtnApp::ChooseNextServingNode() {
 
     CalculateNodeScore();
 
-    if (config.waypointSelectMode == SELECT_MODE_RANDOM_MAXIMUM) {
+    if (config.TABAF_waypointSelectMode == SELECT_MODE_RANDOM_MAXIMUM) {
         double maxScore = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
         std::vector<uint32_t> validNodes;
         for (int i = 0; i < m_nodeScore.size(); i++) {
@@ -126,7 +135,7 @@ void TabafDtnApp::ChooseNextServingNode() {
         return;
     }
 
-    if (config.waypointSelectMode == SELECT_MODE_PROBALISTC) {
+    if (config.TABAF_waypointSelectMode == SELECT_MODE_PROBALISTC) {
         double totalScore = std::accumulate(m_nodeScore.begin(), m_nodeScore.end(), 0.0);
         if (totalScore == 0) {
             m_nextServingNode = groundNodeIps[m_rand->GetInteger(0, groundNodeIps.size() - 1)].Get();
@@ -144,7 +153,7 @@ void TabafDtnApp::ChooseNextServingNode() {
         }
     }
 
-    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.waypointSelectMode);
+    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.TABAF_waypointSelectMode);
     NS_ASSERT_MSG(false, "Unknown waypoint select mode");
 }
 
