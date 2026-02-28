@@ -209,12 +209,12 @@ void BaseDtnApp::StartApplication(void) {
     m_socket->SetAllowBroadcast(true);
     NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " started listening on port " << m_port);
 
-    if (m_nodeType == 0) {
+    if (m_nodeType == NODE_TYPE_GROUND) {
         NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a GROUND node.");
     }
     else {
         NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a FERRY node.");
-        Simulator::Schedule(Seconds(m_rand->GetValue(0.0, config.beaconInterval)), &BaseDtnApp::Beacon, this);
+        Simulator::Schedule(Seconds(m_rand->GetValue(0.1, config.beaconInterval)), &BaseDtnApp::Beacon, this);
     }
 }
 
@@ -412,6 +412,10 @@ void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neigh
 
 Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
     if (m_buffer.empty()) return nullptr;
+    std::sort(m_buffer.begin(), m_buffer.end(), [](const Bundle& a, const Bundle& b) {
+        return a.creationTime > b.creationTime;
+    }); // newest bundle first
+    RemoveExpiredBundles();
 
     if (m_groupId != nodeGroup[neighborIp.Get()]) {
         // send bundle that belongs to ground node with ferry group id
@@ -445,7 +449,7 @@ Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
     if (m_buffer.empty()) return nullptr;
 
     // filter node that neighbor will go to it faster
-    std::vector<std::pair<uint32_t, uint32_t>> nodeFilter; // first: nodeip, second: count
+    std::vector<uint32_t> nodeFilter; // first: nodeip, second: count
     auto neighbor = m_neighbor[neighborIp.Get()];
 
     for (uint32_t i = 0; i < neighbor.route.size(); i++) {
@@ -454,35 +458,15 @@ Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
         uint64_t expect1 = CalExpectedArrival(node, GetServingNodeRoute(), GetServingExpectedArrival());
         if (expect1 == 0 || expect1 - expect2 > config.minExpectedArrivalDifference)
             // neighbor go to node that not in current route or go faster
-            nodeFilter.push_back(std::make_pair(node, 0));
+            nodeFilter.push_back(node);
     }
 
-    // count
     for (Bundle& bundle : m_buffer) {
         if (bundle.flag_waitingAck) continue;
-        for (auto& node : nodeFilter) {
-            if (bundle.destination.Get() == node.first) {
-                node.second++;
-                break;
+        for (uint32_t node : nodeFilter) {
+            if (bundle.destination.Get() == node) {
+                return &bundle;
             }
-        }
-    }
-    // chose node that have the smallest number of bundles to send -> may transfer all to neighbor
-    uint32_t minCountNode = 0;
-    uint32_t minCount = 0;
-    for (auto& node : nodeFilter) {
-        if (node.second != 0 && (minCount == 0 || node.second < minCount)) {
-            minCount = node.second;
-            minCountNode = node.first;
-        }
-    }
-
-    if (minCount == 0)
-        return nullptr;
-
-    for (auto& bundle : m_buffer) {
-        if (bundle.destination.Get() == minCountNode && bundle.flag_waitingAck == false) {
-            return &bundle;
         }
     }
 
@@ -734,7 +718,7 @@ void BaseDtnApp::OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet)
         return;
     }
 
-    NS_LOG_UNCOND("Bundle reached destination");
+    // NS_LOG_UNCOND("Bundle reached destination");
     Time jitter = GetJitter();
     Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
     BundleReachedDestination(bundle);
