@@ -4,15 +4,17 @@ import os
 PROGRAM = "ferry"
 
 params = {
-    "seed": 392826688,
-    "name": "TABAF", # algorithm name
+    "seed": 1337,
+    "name": "SIRA", # algorithm name
+    "vi": True,
+    "batch": "default",
     "run": "debug", # run name for log file
     "simTime": 500,
     "commRange": 150,
     "ferryHeight": 50,
-    "areaWidth": 5000,
-    "nGrounds": 25,
-    "nFerrys": 10,
+    "areaWidth": 2000,
+    "nGrounds": 10,
+    "nFerrys": 3,
     "ferrySpeed": 15,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,

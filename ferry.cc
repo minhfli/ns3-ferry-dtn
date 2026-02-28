@@ -70,6 +70,13 @@ int main(int argc, char* argv[]) {
     FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/trace/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
     Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
+    if (config.skipIfExist) {
+        std::ifstream reportFile(Report::reportFileName);
+        if (reportFile.good()) {
+            std::cout << "Report file already exists, skipping simulation." << std::endl;
+            return 0;
+        }
+    }
     LogComponentEnable("FerryDtnSimulation", LOG_LEVEL_INFO);
 
     // TODO Tìm hiểu về seed, run, trial trong ns3

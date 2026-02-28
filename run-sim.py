@@ -14,6 +14,7 @@ BATCH = "20260228_3am"
 base_params = {
     "batch": BATCH,
     "vi": False,
+    "skip": True, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "PIGEON",
     "run": "exp",
@@ -30,12 +31,12 @@ param_grid = {
     "name": ["SIRA", "PIGEON", "TABAF"],
 
     "nGrounds": [30],
-    "nFerrys": [1,3,5,10,12,15],
+    "nFerrys": [1,3,5,10],
 
     "groundBufferSize": [50],
     "ferryBufferSize": [300, 500, 1000],
 
-    "bundleGenRate": [5.0, 10.0, 20.0,30.0, 60.0],
+    "bundleGenRate": [10.0, 30.0, 60.0],
     "bundleTTL": [600000000, 900000000],
 
     "ferryComm": [False, True],

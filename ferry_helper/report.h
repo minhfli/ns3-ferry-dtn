@@ -57,6 +57,8 @@ namespace Report {
 
         std::ofstream file(reportFileName);
         file << "--CONFIG" << std::endl;
+        file << "Random Seed: " << config.randSeed << std::endl;
+        file << "Algorithm: " << config.ALGORITHM_NAME << std::endl;
         file << "Simulation Time (s): " << config.simTime << std::endl;
         file << "Area Width (m): " << config.areaWidth << std::endl;
         file << "Bundle Generation Rate (s/bundle): " << config.bundleGenRate << std::endl;

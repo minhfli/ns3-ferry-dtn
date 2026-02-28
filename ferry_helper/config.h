@@ -20,6 +20,7 @@ struct Config {
     std::string SIMULATION_RUN = "1";
     std::string REPORT_BATCH = "default";
     bool enableVisualization = true;
+    bool skipIfExist = false;
     // sim config
     double simTime = 5000.0; // seconds
     double startGeneraionTime = 300.0; // seconds, warmup before
@@ -51,7 +52,7 @@ struct Config {
     double bundleGenRate = 5.0; // 1 bundle every ... seconds
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
-    uint64_t minExpectedArrivalDifference = 500000; // 0.5 seconds (microsec), min expected arrival difference
+    double minExpectedArrivalDifference = 10; // (seconds), min expected arrival difference (2 * Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
 
     bool enableFerryComm = false;
 
@@ -88,6 +89,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("run", "Simulation Run", config.SIMULATION_RUN);
     cmd.AddValue("batch", "Report batch name", config.REPORT_BATCH);
     cmd.AddValue("vi", "Enable visualization", config.enableVisualization);
+    cmd.AddValue("skip", "Skip if exist", config.skipIfExist);
     // -- general config --
     cmd.AddValue("simTime", "Simulation time", config.simTime);
     cmd.AddValue("commRange", "Communication range", config.commRange);

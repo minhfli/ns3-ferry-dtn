@@ -242,7 +242,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
         m_pigeonNextIndex = 0;
 
         SchedulePigeonWaypoint();
-        NS_LOG_UNCOND("Switch to pigeon mode");
+        // NS_LOG_UNCOND("Switch to pigeon mode");
         return;
     }
     else {
@@ -291,7 +291,7 @@ void PigeonDtnApp::SchedulePigeonWaypoint() {
             }
         }
         ScheduleFerryWaypoint();
-        NS_LOG_UNCOND("Switch to ferry mode");
+        // NS_LOG_UNCOND("Switch to ferry mode");
         return;
     }
     point2D relative = { groundNodePos[m_pigeonOrder[m_pigeonNextIndex]].x - currentPos.x,
@@ -342,7 +342,7 @@ void PigeonDtnApp::SchedulePigeonOnBufferFull() { // TODO remove, this function 
     m_pigeonOrder = pigeonRoute;
     m_pigeonNextIndex = 0;
     SchedulePigeonWaypoint();
-    NS_LOG_UNCOND("Buffer full, Switch to pigeon mode");
+    // NS_LOG_UNCOND("Buffer full, Switch to pigeon mode");
     return;
 }
 
