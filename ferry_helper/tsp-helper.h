@@ -203,7 +203,8 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
     const double starting_time,
     const double speed,
     const uint32_t population_size = 100,
-    const uint32_t max_generation = 2000
+    const uint32_t max_generation = 2000,
+    uint32_t* best_cost = nullptr
 ) {
     uint32_t POP_SIZE = population_size; // population size
     uint32_t MAX_GEN = max_generation; // max number of generation
@@ -254,8 +255,10 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
             NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
         }
     }
-
-    return std::min_element(population.begin(), population.end())->order;
+    if (best_cost != nullptr) {
+        *best_cost = population[0].cost;
+    }
+    return population[0].order;
 
 }
 
@@ -265,14 +268,15 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
     const point2D starting_pos,
     const double starting_time,
     const double speed,
-    const std::vector<uint32_t>& baseOrder
+    const std::vector<uint32_t>& baseOrder,
+    uint32_t* best_cost = nullptr
 ) {
     if (baseOrder.size() <= 1) {
         return baseOrder;
     }
 
     std::vector<uint32_t> order = baseOrder;
-    double bestCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+    uint32_t bestCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
     bool improve = true;
 
     while (improve) {
@@ -280,7 +284,7 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
         for (size_t i = 0; i < order.size() - 1; ++i) {
             for (size_t j = i + 1; j < order.size(); ++j) {
                 std::reverse(order.begin() + i, order.begin() + j + 1);
-                double newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+                uint32_t newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
                 if (newCost < bestCost) {
                     bestCost = newCost;
                     improve = true;
@@ -288,10 +292,21 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
                 else {
                     std::reverse(order.begin() + i, order.begin() + j + 1);
                 }
+                std::swap(order[i], order[j]);
+                newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+                if (newCost < bestCost) {
+                    bestCost = newCost;
+                    improve = true;
+                }
+                else {
+                    std::swap(order[i], order[j]);
+                }
             }
         }
     }
-
+    if (best_cost != nullptr) {
+        *best_cost = bestCost;
+    }
     return order;
 }
 

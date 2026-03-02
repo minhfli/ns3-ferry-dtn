@@ -196,24 +196,36 @@ Bundle* TabafDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
         point2D myTargetPos = nodePos(m_nextServingNode);
 
         for (Bundle& bundle : m_buffer) {
+            // nessesary condition
             if (bundle.flag_waitingAck) continue;
+            if (neighbor.bufferState.find(bundle.destination.Get()) == neighbor.bufferState.end())  continue;
 
             point2D bundlePos = nodePos(bundle.destination.Get());
-            if (dist(neighborTargetPos, bundlePos) < dist(myTargetPos, bundlePos)) {
-                if (neighbor.bufferState.find(bundle.destination.Get()) != neighbor.bufferState.end()) {
-                    return &bundle; // send bundle to node that have better chance to reach
-                }
+            // sufficient condition 1
+            if (dist(neighborTargetPos, bundlePos) < dist(myTargetPos, bundlePos)) continue;
+
+            Vector3D currentPos = m_mobility->GetPosition();
+            point2D relative = { bundlePos.x - currentPos.x,
+                                 bundlePos.y - currentPos.y };
+            double expect1 = Simulator::Now().GetSeconds() + (relative.length() + dist(myTargetPos, bundlePos)) / config.ferrySpeed;
+            double expect2 = (double)neighbor.expectedArrival[neighbor.expectedArrival.size() - 1] / 1000000.0;
+            expect2 += dist(neighborTargetPos, bundlePos) / config.ferrySpeed;
+
+            // sufficient condition 2
+            if (expect1 - expect2 > config.minExpectedArrivalDifference) {
+                return &bundle; // send bundle to node that have better chance to reach
             }
         }
     }
     else { // 2 node going to the same target
-        uint64_t expect2 = neighbor.expectedArrival[neighbor.expectedArrival.size() - 1];
+        double expect2 = neighbor.expectedArrival[neighbor.expectedArrival.size() - 1];
+        expect2 /= 1000000.0;
 
         Vector3D currentPos = m_mobility->GetPosition();
         point2D relative = { nodePos(m_nextServingNode).x - currentPos.x,
                              nodePos(m_nextServingNode).y - currentPos.y };
         double dist = relative.length();
-        uint64_t expect1 = Simulator::Now().GetMicroSeconds() + dist / config.ferrySpeed * 1000000.0;
+        double expect1 = Simulator::Now().GetSeconds() + dist / config.ferrySpeed;
         if (expect1 - expect2 > config.minExpectedArrivalDifference) {
             for (Bundle& bundle : m_buffer) {
                 if (!bundle.flag_waitingAck && bundle.destination.Get() == m_nextServingNode) {

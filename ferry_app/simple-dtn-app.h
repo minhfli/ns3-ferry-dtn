@@ -13,10 +13,33 @@ namespace SIRA {
     std::vector<point2D> points;
     std::vector<uint32_t> nodeList;
     void createRoute() {
+        points = groundNodePos;
+        for (uint32_t i = 0; i < config.nGrounds; i++) {
+            nodeList.push_back(groundNodeIps[i].Get());
+        }
         if (created) return;
         created = true;
         route = TSPClassicGA(points);
         route = TSPTwoOptOptimize(points, route);
+    }
+
+    uint32_t GetClosestIndex(const point2D target, const std::set<uint32_t>& excludeIndex = {}) {
+        if (!created) {
+            NS_ASSERT_MSG(false, "SIRA route not created");
+        }
+        uint32_t minIndex = 0;
+        while (excludeIndex.find(minIndex) != excludeIndex.end()) {
+            minIndex++;
+        }
+        for (uint32_t i : route) {
+            if (excludeIndex.find(i) != excludeIndex.end()) {
+                continue;
+            }
+            if (dist(points[i], target) < dist(points[minIndex], target)) {
+                minIndex = i;
+            }
+        }
+        return minIndex;
     }
 };
 
@@ -49,12 +72,6 @@ NS_OBJECT_ENSURE_REGISTERED(SingleRouteDtnApp);
 
 void SingleRouteDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) {
     if (!SIRA::created) {
-        std::vector<point2D> points;
-        for (auto index : servingNodesIndex) {
-            points.push_back(groundNodePos[index]);
-            SIRA::nodeList.push_back(groundNodeIps[index].Get());
-        }
-        SIRA::points = points;
         SIRA::createRoute();
     }
     m_direction = m_rand->GetInteger(0, 1);

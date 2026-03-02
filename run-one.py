@@ -5,11 +5,11 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SIRA", # algorithm name
+    "name": "SR_PIGEON", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
-    "simTime": 500,
+    "simTime": 3000,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 2000,
@@ -18,7 +18,7 @@ params = {
     "ferrySpeed": 15,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,
-    "bundleGenRate": 30.0, # packets/sec
+    "bundleGenRate": 10.0, # packets/sec
     "bundleTTL": 600000000, # microsec
     "ferryComm": True, # enable communication between ferry
 }

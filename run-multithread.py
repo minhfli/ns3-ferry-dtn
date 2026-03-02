@@ -10,9 +10,9 @@ import time
 from datetime import datetime, timedelta
 
 PROGRAM = "ferry"
-BATCH = "20260228_5pm"
-BATCH_ID = "20260228" #! TEMPORARY for rerun
-# BATCH_ID = datetime.now().strftime("%Y%m%d_%H")
+BATCH = "20260301_8am"
+# BATCH_ID = "20260228" #! TEMPORARY for rerun
+BATCH_ID = datetime.now().strftime("%Y%m%d")
 
 
 # ============================================================
@@ -21,7 +21,7 @@ BATCH_ID = "20260228" #! TEMPORARY for rerun
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "PIGEON",
     "run": "exp",
@@ -33,7 +33,7 @@ base_params = {
 # ============================================================
 # Parameter sweep grid
 # ============================================================
-param_grid = {
+default_grid = {
     "name": ["SIRA", "PIGEON", "TABAF"],
 
     "nGrounds": [30],
@@ -43,9 +43,24 @@ param_grid = {
     "ferryBufferSize": [500],
 
     "bundleGenRate": [10.0, 30.0],
-    "bundleTTL": [600000000, 1200000000],
+    "bundleTTL": [300000000, 600000000, 1200000000],
 
     "ferryComm": [False, True],
+}
+
+param_grid = { # change or set to default grid for custom run
+    "name": [ "TABAF"],
+
+    "nGrounds": [30],
+    "nFerrys": [1,3,5,10],
+
+    "groundBufferSize": [1000],
+    "ferryBufferSize": [500],
+
+    "bundleGenRate": [10.0, 30.0],
+    "bundleTTL": [300000000, 600000000, 1200000000],
+
+    "ferryComm": [True],
 }
 
 N_SEEDS = 3

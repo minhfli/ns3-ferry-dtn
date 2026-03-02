@@ -52,7 +52,6 @@ class PigeonDtnApp : public BaseDtnApp {
     // void ReceivePacket(Ptr<Socket> socket);
 
     private:
-    std::vector<std::vector<double>> GetDeadlines();
     void CleanUpPigeonRoute(); // remove waypoint from the pigeon route 
 
     EventId m_mobilityScheduleEvent;
@@ -152,20 +151,6 @@ std::vector<point2D> PigeonDtnApp::GetServingWaypointRoute() {
         return {};
     }
 }
-
-std::vector<std::vector<double>> PigeonDtnApp::GetDeadlines() {
-    RemoveExpiredBundles();
-    std::vector<std::vector<double>> deadlines;
-    deadlines.resize(config.nGrounds);
-    for (auto bundle : m_buffer) {
-        uint32_t node = rawNodeId(bundle.destination.Get());
-        double dl = bundle.creationTime + config.bundleTTL; //microsec
-        dl /= 1000000.0;
-        deadlines[node].push_back(dl);
-    }
-    return deadlines;
-}
-
 
 void PigeonDtnApp::ScheduleNextWaypoint() {
     RemoveExpiredBundles();

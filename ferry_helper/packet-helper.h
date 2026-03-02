@@ -251,14 +251,18 @@ class MessageTypeHeader : public Header {
 class FerryRouteHeader : public Header {
     private:
     uint8_t m_group;
+    uint8_t m_mode;
     uint8_t m_count;
     std::vector<uint32_t> m_waypoints;
     std::vector<uint64_t> m_expectedArrival;
 
     public:
-    FerryRouteHeader() : m_group(0), m_count(0), m_waypoints() {}
+    FerryRouteHeader() : m_group(0), m_mode(0), m_count(0), m_waypoints() {}
     void SetGroup(uint8_t group) { m_group = group; }
     uint8_t GetGroup() const { return m_group; }
+
+    void SetMode(uint8_t mode) { m_mode = mode; }
+    uint8_t GetMode() const { return m_mode; }
 
     void SetCount(uint8_t count) { m_count = count; }
     uint8_t GetCount() const { return m_count; }
@@ -285,12 +289,13 @@ class FerryRouteHeader : public Header {
 
     virtual uint32_t GetSerializedSize(void) const
     {
-        return 1 + 1 + (4 + 8) * m_count;
+        return 1 + 1 + 1 + (4 + 8) * m_count;
     }
 
     virtual void Serialize(Buffer::Iterator start) const
     {
         start.WriteU8(m_group);
+        start.WriteU8(m_mode);
         start.WriteU8(m_count);
         for (uint8_t i = 0; i < m_count; i++) {
             start.WriteHtonU32(m_waypoints[i]);
@@ -301,6 +306,7 @@ class FerryRouteHeader : public Header {
     virtual uint32_t Deserialize(Buffer::Iterator start)
     {
         m_group = start.ReadU8();
+        m_mode = start.ReadU8();
         m_count = start.ReadU8();
         m_waypoints.resize(m_count);
         m_expectedArrival.resize(m_count);

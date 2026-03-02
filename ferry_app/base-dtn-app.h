@@ -68,7 +68,7 @@ class BaseDtnApp : public Application {
     void SetGroup(uint8_t groupId) {
         m_groupId = groupId;
     }
-
+    void UpdateGroup(uint8_t groupId);
     /**
      * Setup mobility cho node
      * @param servingNodes Các ground node mà ferry phải phục vụ
@@ -83,11 +83,12 @@ class BaseDtnApp : public Application {
     //* --- Một số hàm tiện ích ---
     // Lấy route của ferry, dưới dạng node IP
     virtual std::vector<uint32_t> GetServingNodeRoute() = 0;
-    // Lấy route của ferry, dưới dạng waypoint
-    virtual std::vector<point2D> GetServingWaypointRoute() = 0;
+    // Lấy route của ferry, dưới dạng waypoint, mặc định trả về cá vị trí của node trong node route
+    virtual std::vector<point2D> GetServingWaypointRoute();
 
     std::vector<uint64_t> GetServingExpectedArrival();
     std::map<uint32_t, uint32_t> GetBundleCount() const;
+    std::vector<std::vector<double>> GetDeadlines();
 
 
     void SetVisitTime(uint32_t nodeIp, uint64_t time);
@@ -222,9 +223,26 @@ void BaseDtnApp::StopApplication(void) {
     if (m_socket) { m_socket->Close(); }
 }
 
+void BaseDtnApp::UpdateGroup(uint8_t groupId) {
+    m_groupId = groupId;
+    nodeGroup[m_myIp.Get()] = groupId;
+}
+
 #pragma endregion
 
 #pragma region Helper
+
+std::vector<point2D> BaseDtnApp::GetServingWaypointRoute() {
+    auto nodeRoute = this->GetServingNodeRoute();
+    if (nodeRoute.empty()) return {};
+
+    std::vector<point2D> route;
+    for (auto node : nodeRoute) {
+        route.push_back(nodePos(node));
+    }
+    return route;
+}
+
 std::vector<uint64_t> BaseDtnApp::GetServingExpectedArrival() {
     auto waypointRoute = this->GetServingWaypointRoute();
     if (waypointRoute.empty()) return {};
@@ -269,6 +287,18 @@ std::map<uint32_t, uint32_t> BaseDtnApp::GetBundleCount() const {
     return bundleCount;
 }
 
+std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
+    RemoveExpiredBundles();
+    std::vector<std::vector<double>> deadlines;
+    deadlines.resize(config.nGrounds);
+    for (auto bundle : m_buffer) {
+        uint32_t node = rawNodeId(bundle.destination.Get());
+        double dl = bundle.creationTime + config.bundleTTL; //microsec
+        dl /= 1000000.0;
+        deadlines[node].push_back(dl);
+    }
+    return deadlines;
+}
 #pragma endregion
 #pragma region Sending 
 void BaseDtnApp::Beacon() {
@@ -316,6 +346,7 @@ void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
 
     FerryRouteHeader fRouteHeader;
     fRouteHeader.SetGroup(m_groupId);
+    fRouteHeader.SetMode(m_mode);
     auto routeIp = this->GetServingNodeRoute();
     auto routeArrival = this->GetServingExpectedArrival();
     uint32_t count = routeIp.size();
@@ -837,15 +868,18 @@ void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) 
         return;
     }
     if (nodeType[sourceIp.Get()] == NODE_TYPE_FERRY) {
-        Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
         Time jitter2 = GetJitter() + jitter;
         Bundle* bundlePtr = FerrySelectBundleToFerry(sourceIp);
         if (bundlePtr == nullptr) {
             if (hasBuffer) {
-                Simulator::Schedule(jitter2, &BaseDtnApp::SendFerryAcceptTransfer, this, sourceIp);
+                Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
+            }
+            else {
+                Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
             }
         }
         else {
+            Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
             Simulator::Schedule(jitter2, &BaseDtnApp::SendBundle, this, *bundlePtr, sourceIp);
         }
         return;

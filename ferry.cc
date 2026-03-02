@@ -29,6 +29,7 @@
 #include "ferry_app/simple-dtn-app.h"
 #include "ferry_app/pigeon-dtn-app.h"
 #include "ferry_app/tabaf-dtn-app.h"
+#include "ferry_app/sr-pigeon-dtn-app.h"
 
 
 #include <vector>
@@ -50,6 +51,9 @@ Ptr<BaseDtnApp> createApp() {
     }
     if (config.ALGORITHM_NAME == "TABAF") {
         return CreateObject<TabafDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "SR_PIGEON") {
+        return CreateObject<SingleRoutePigeonDtnApp>();
     }
     return nullptr;
 }
@@ -192,6 +196,10 @@ int main(int argc, char* argv[]) {
     if (config.ALGORITHM_NAME == "TABAF") {
         groupCount = 1;
     }
+    if (config.ALGORITHM_NAME == "SR_PIGEON") {
+        groupCount = 1;
+    }
+
 
     auto clusters = Clustering::KMeans(groundNodePos, groupCount);
 
