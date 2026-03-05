@@ -125,7 +125,7 @@ void TabafDtnApp::ChooseNextServingNode() {
 
     CalculateNodeScore();
 
-    if (config.TABAF_waypointSelectMode == SELECT_MODE_RANDOM_MAXIMUM) {
+    if (config.waypointSelectMode == DETERMINISTIC) {
         double maxScore = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
         std::vector<uint32_t> validNodes;
         for (int i = 0; i < m_nodeScore.size(); i++) {
@@ -137,7 +137,7 @@ void TabafDtnApp::ChooseNextServingNode() {
         return;
     }
 
-    if (config.TABAF_waypointSelectMode == SELECT_MODE_PROBALISTC) {
+    if (config.waypointSelectMode == PROBABILISTIC) {
         double totalScore = std::accumulate(m_nodeScore.begin(), m_nodeScore.end(), 0.0);
         if (totalScore == 0) {
             m_nextServingNode = groundNodeIps[m_rand->GetInteger(0, groundNodeIps.size() - 1)].Get();
@@ -155,7 +155,7 @@ void TabafDtnApp::ChooseNextServingNode() {
         }
     }
 
-    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.TABAF_waypointSelectMode);
+    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.waypointSelectMode);
     NS_ASSERT_MSG(false, "Unknown waypoint select mode");
 }
 

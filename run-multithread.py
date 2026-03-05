@@ -1,3 +1,4 @@
+from logging.config import valid_ident
 import subprocess
 import os
 import itertools
@@ -11,8 +12,8 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260305_2am"
-BATCH_ID = "20260305" #! TEMPORARY for rerun
+BATCH = "20260306_3am"
+BATCH_ID = "conf431" #! TEMPORARY for rerun
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
 
@@ -22,14 +23,14 @@ BATCH_ID = "20260305" #! TEMPORARY for rerun
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": False, # skip if already run
+    "skip": True, # skip if already run
     "seed": 0,  # sẽ được override
-    "name": "TABADLA",
-    "run": "exp",
-    "simTime": 7500,
+    "name": "ALGORITHM",
+    "run": "RUN",
+    "simTime": 11100,
     "commRange": 150,
     "ferryHeight": 50,
-    "areaWidth": 3000,
+    "areaWidth": 4000,
     "ferrySpeed": 10,
 }
 # ============================================================
@@ -51,22 +52,63 @@ default_grid = {
 }
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "TABADLA"],
+    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "TABADLA"],
 
-    "nGrounds": [25],
-    "nFerrys": [1,3,5,10],
+    "nGrounds": [30],
+    "nFerrys": [1, 3, 5, 7, 10, 12, 15],
 
     "groundBufferSize": [1000],
     "ferryBufferSize": [500],
 
-    "bundleGenRate": [10.0, 30.0],
-    "bundleTTL": [ 600000000, 1200000000],
+    "bundleGenRate": [15.0],
+    "bundleTTL": [600000000, 900000000],
 
     "ferryComm": [False, True],
 }
 
+algo_variants= {
+    "PIGEON": {
+        "default": {
+            "pigeonReturn": 0
+        },
+        "RC": { # return closest
+            "pigeonReturn": 1,
+        },
+    },
+    "TABAF": {
+        "default": {
+            "waypointSelectMode": "DETERMINISTIC",
+        },
+        "PWS": {
+            "waypointSelectMode": "PROBABILISTIC",
+        },
+    },
+    "SR_PIGEON": {
+        "default": {
+            "waypointSelectMode": "PROBABILISTIC",
+        },  
+        "DWS": {
+            "waypointSelectMode": "DETERMINISTIC",
+        },
+    },
+    "TABADLA": {
+        # "default": { # previous run show that this is not good
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "TABADLA_addBundleValue": True
+        # },
+        "PWS_noB": {
+            "waypointSelectMode": "PROBABILISTIC",
+            "TABADLA_addBundleValue": False
+        },
+        "DWS_noB": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "TABADLA_addBundleValue": False
+        },
+    },
+}
+
 N_SEEDS = 3
-MAX_WORKERS = 8
+MAX_WORKERS = 10
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling
@@ -166,30 +208,46 @@ if __name__ == "__main__":
     random.seed(1337)
     seed_list = [random.randint(1, 10**9) for _ in range(N_SEEDS)]
     all_configs = list(generate_param_combinations(param_grid))
-
+    
     # Chuẩn bị danh sách các task
     tasks = []
+    total_config_count = 0
+    for config in all_configs:
+        algo = config["name"]
+        if algo not in algo_variants:
+            algo_variants[algo] = {"default": {}}
+        total_config_count += len(algo_variants[algo])
+    
     for config_id, config in enumerate(all_configs):
         for seed_id, random_seed in enumerate(seed_list):
             params = copy.deepcopy(base_params)
             params.update(config)
             params["seed"] = random_seed
             algo = params["name"]
-
-            params["run"] = (
-                f"{batch_id}"
-                f"_G{params['nGrounds']}"
-                f"_F{params['nFerrys']}"
-                f"_GBS{params['groundBufferSize']}"
-                f"_FBS{params['ferryBufferSize']}"
-                f"_T{params['bundleTTL'] / 1000000}"
-                f"_R{params['bundleGenRate']}"
-                f"_C{int(params['ferryComm'])}"
-                f"_seed{seed_id}"
-            )
-            cmd = build_cmd(PROGRAM, params)
-            config_name = f"Config {config_id + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo}"
-            tasks.append((cmd, config_name))
+            
+            if algo not in algo_variants:
+                algo_variants[algo] = {"default": {}}
+            for variant_name, variant_params in algo_variants.get(algo, {}).items():
+                params.update(variant_params)
+                if variant_name is "default":
+                    variant_name = ""
+                else:
+                    variant_name = f"variant_{variant_name}_"
+                params["run"] = (
+                    f"{variant_name}"
+                    f"{batch_id}"
+                    f"_G{params['nGrounds']}"
+                    f"_F{params['nFerrys']}"
+                    f"_GBS{params['groundBufferSize']}"
+                    f"_FBS{params['ferryBufferSize']}"
+                    f"_T{params['bundleTTL'] / 1000000}"
+                    f"_R{params['bundleGenRate']}"
+                    f"_C{int(params['ferryComm'])}"
+                    f"_seed{seed_id}"
+                )
+                cmd = build_cmd(PROGRAM, params)
+                config_name = f"Config {config_id + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo} | Variant: {variant_name}"
+                tasks.append((cmd, config_name))
 
 
     if command_index is not None:
@@ -209,6 +267,7 @@ if __name__ == "__main__":
         exit(0)
     print("==============================================")
     print(f"Total parameter configurations: {len(all_configs)}")
+    print(f"Total config and variants: {total_config_count}")
     print(f"Seeds per configuration: {N_SEEDS}")
     print(f"Total runs: {len(tasks)}")
     print(f"Concurrent workers (Threads): {MAX_WORKERS}")

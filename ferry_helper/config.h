@@ -14,6 +14,9 @@ constexpr uint8_t SELECT_MODE_PROBALISTC = 2;
 constexpr uint8_t PIGEON_RETURN_CONTINUE = 0;
 constexpr uint8_t PIGEON_RETURN_CLOSET = 1;
 
+const std::string DETERMINISTIC = "DETERMINISTIC";
+const std::string PROBABILISTIC = "PROBABILISTIC";
+
 struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
@@ -64,10 +67,12 @@ struct Config {
     uint32_t positionLogInterval = 250; // ms ~ 0.25s
 
     uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
-    double SR_PIGEON_reversePercentage = 0.3;
+
+    bool TABADLA_addBundleValue = false;
+    uint32_t TABADLA_topK = 10;
 
     // waypoint selection config, for Tabaf and its derived algorithm
-    uint32_t TABAF_waypointSelectMode = SELECT_MODE_RANDOM_MAXIMUM;
+    std::string waypointSelectMode = DETERMINISTIC;
 
 } config;
 
@@ -111,7 +116,8 @@ void ParseConfig(int argc, char* argv[]) {
 
     // ----- algorithm specific config -----
     cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);
-    cmd.AddValue("tabafSelect", "Waypoint selection mode", config.TABAF_waypointSelectMode);
+    cmd.AddValue("TABADLA_addBundleValue", "TABADLA, add bundle value", config.TABADLA_addBundleValue);
+    cmd.AddValue("waypointSelectMode", "Waypoint selection mode", config.waypointSelectMode);
 
     cmd.Parse(argc, argv);
     return;

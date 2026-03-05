@@ -5,16 +5,16 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SIRA", # algorithm name
+    "name": "TABADLA", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
     "simTime": 1000,
     "commRange": 150,
     "ferryHeight": 50,
-    "areaWidth": 2000,
-    "nGrounds": 10,
-    "nFerrys": 3,
+    "areaWidth": 4000,
+    "nGrounds": 30,
+    "nFerrys": 15,
     "ferrySpeed": 10,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,

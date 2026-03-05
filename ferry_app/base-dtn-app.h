@@ -592,6 +592,7 @@ void BaseDtnApp::BundleReachedDestination(Bundle b) {
     Report::totalHop++;
     Report::bundleFowardCount++;
     Report::totalDelay += Simulator::Now() - MicroSeconds(b.creationTime);
+    Report::delayList.push_back(Simulator::Now() - MicroSeconds(b.creationTime));
 }
 
 void BaseDtnApp::RemoveExpiredBundles() {

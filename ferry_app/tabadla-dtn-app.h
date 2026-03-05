@@ -90,8 +90,21 @@ void TabaDlaDtnApp::CalculateNodeScore() {
              return a.second < b.second;
     })->second;
     auto deadlines = GetDeadlines();
+    std::priority_queue<double> closestDistance;
 
-    for (int i = 0; i < config.nGrounds; i++) {
+    for (auto pos : groundNodePos) {
+        Vector3D currentPos = m_mobility->GetPosition();
+        point2D relative = { pos.x - currentPos.x,
+                             pos.y - currentPos.y };
+        double dist = relative.length();
+        closestDistance.push(dist);
+    }
+    while (closestDistance.size() > config.TABADLA_topK) {
+        closestDistance.pop();
+    }
+    double kthDistance = closestDistance.top();
+
+    for (uint32_t i = 0; i < config.nGrounds; i++) {
         double currentTime = Simulator::Now().GetSeconds();
         Vector3D currentPos = m_mobility->GetPosition();
         point2D relative = { groundNodePos[i].x - currentPos.x,
@@ -112,12 +125,12 @@ void TabaDlaDtnApp::CalculateNodeScore() {
         }
 
         double bundleValue = 0;
-        if (maxCount != 0 && bundleCountMap.find(groundNodeIps[i].Get()) != bundleCountMap.end()) {
+        if (config.TABADLA_addBundleValue && maxCount != 0 && bundleCountMap.find(groundNodeIps[i].Get()) != bundleCountMap.end()) {
             bundleValue = (double)bundleCountMap[groundNodeIps[i].Get()] / maxCount;
         }
 
         double deadlineValue = 0;
-        if (m_buffer.size() > 0) {
+        if (m_buffer.size() > 0 && dist <= kthDistance) { // advoid too many calculation
             uint32_t bestTSPDeadlineCost;
             auto route = TSPDeadlineHelper(groundNodePos, deadlines,
                 groundNodePos[i],
@@ -129,7 +142,6 @@ void TabaDlaDtnApp::CalculateNodeScore() {
             );
             deadlineValue = (double)bestTSPDeadlineCost / (double)m_buffer.size();
         }
-
 
         m_nodeScore[i] = (timeValue + bundleValue + deadlineValue) / dist;
     }
@@ -144,7 +156,7 @@ void TabaDlaDtnApp::ChooseNextServingNode() {
 
     CalculateNodeScore();
 
-    if (config.TABAF_waypointSelectMode == SELECT_MODE_RANDOM_MAXIMUM) {
+    if (config.waypointSelectMode == DETERMINISTIC) { // deterministic: select randomly between max score node
         double maxScore = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
         std::vector<uint32_t> validNodes;
         for (int i = 0; i < m_nodeScore.size(); i++) {
@@ -157,7 +169,7 @@ void TabaDlaDtnApp::ChooseNextServingNode() {
     }
 
 
-    if (config.TABAF_waypointSelectMode == SELECT_MODE_PROBALISTC) {
+    if (config.waypointSelectMode == PROBABILISTIC) { // probalistic
         double totalScore = std::accumulate(m_nodeScore.begin(), m_nodeScore.end(), 0.0);
         if (totalScore == 0) {
             m_nextServingNode = groundNodeIps[m_rand->GetInteger(0, groundNodeIps.size() - 1)].Get();
@@ -175,7 +187,7 @@ void TabaDlaDtnApp::ChooseNextServingNode() {
         }
     }
 
-    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.TABAF_waypointSelectMode);
+    NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.waypointSelectMode);
     NS_ASSERT_MSG(false, "Unknown waypoint select mode");
 }
 
