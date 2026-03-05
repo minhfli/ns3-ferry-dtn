@@ -38,7 +38,8 @@ namespace Report {
     }
     void Export() {
         for (uint32_t i = 0; i < config.nGrounds; i++) {
-            for (uint32_t j = 0; j < config.nFerrys; j++) {
+            for (uint32_t j = 0; j < config.nGrounds; j++) {
+                if (i == j) continue;
                 double deliverRate = (double)100.0 * nodeBundleReachedDestination[i][j] / nodeBundleCount[i][j];
                 if (deliverRate < 1)
                     lowConnection_1p++;

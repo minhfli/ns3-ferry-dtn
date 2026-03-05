@@ -56,7 +56,6 @@ class SingleRouteDtnApp : public BaseDtnApp {
     }
     virtual void InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) override;
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
-    virtual std::vector<point2D> GetServingWaypointRoute() override;
 
     protected:
 
@@ -109,15 +108,6 @@ std::vector<uint32_t> SingleRouteDtnApp::GetServingNodeRoute() {
         nodeRoute.push_back(SIRA::nodeList[SIRA::route[(i * m_direction + m_nextWaypointIndex + len) % len]]);
     }
     return nodeRoute;
-}
-
-std::vector<point2D> SingleRouteDtnApp::GetServingWaypointRoute() {
-    std::vector<point2D> waypointRoute;
-    uint32_t len = SIRA::route.size();
-    for (uint32_t i = 0; i < len; i++) {
-        waypointRoute.push_back(SIRA::points[SIRA::route[(i * m_direction + m_nextWaypointIndex + len) % len]]);
-    }
-    return waypointRoute;
 }
 
 #endif // SIMPLE_DTN_APP_H

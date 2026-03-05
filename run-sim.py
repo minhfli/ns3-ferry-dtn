@@ -6,45 +6,61 @@ import copy
 from datetime import datetime
 
 PROGRAM = "ferry"
-BATCH = "20260228_3am"
+BATCH = "20260305_2am"
+BATCH_ID = "20260305" #! TEMPORARY for rerun
+# BATCH_ID = datetime.now().strftime("%Y%m%d")
+
 
 # ============================================================
-# Base parameters (giá trị mặc định - không sweep)
+# Base parameters
 # ============================================================
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
-    "name": "PIGEON",
+    "name": "TABADLA",
     "run": "exp",
-    "simTime": 5000,
+    "simTime": 7500,
     "commRange": 150,
     "ferryHeight": 50,
-    "areaWidth": 5000,
+    "areaWidth": 3000,
+    "ferrySpeed": 10,
 }
-
 # ============================================================
-# Parameter sweep grid (chỉ sửa ở đây nếu muốn mở rộng)
+# Parameter sweep grid
 # ============================================================
-param_grid = {
+default_grid = {
     "name": ["SIRA", "PIGEON", "TABAF"],
 
     "nGrounds": [30],
     "nFerrys": [1,3,5,10],
 
-    "groundBufferSize": [50],
-    "ferryBufferSize": [300, 500, 1000],
+    "groundBufferSize": [1000],
+    "ferryBufferSize": [500],
 
-    "bundleGenRate": [10.0, 30.0, 60.0],
-    "bundleTTL": [600000000, 900000000],
+    "bundleGenRate": [10.0, 30.0],
+    "bundleTTL": [300000000, 600000000, 1200000000],
 
     "ferryComm": [False, True],
 }
 
-# Số seed chạy cho mỗi cấu hình
-N_SEEDS = 3
+param_grid = { # change or set to default grid for custom run
+    "name": [ "TABADLA"],
 
+    "nGrounds": [25],
+    "nFerrys": [1,3,5,10],
+
+    "groundBufferSize": [1000],
+    "ferryBufferSize": [500],
+
+    "bundleGenRate": [10.0, 30.0],
+    "bundleTTL": [ 600000000, 1200000000],
+
+    "ferryComm": [False, True],
+}
+
+N_SEEDS = 3
 
 # ============================================================
 # Utility: build waf command
@@ -86,7 +102,7 @@ if __name__ == "__main__":
         os.chdir("..")
 
     # Tạo batch id để phân biệt các lần chạy khác nhau
-    batch_id = datetime.now().strftime("%Y%m%d_%H")
+    batch_id = BATCH_ID
         
     # Sinh danh sách seed cố định (đảm bảo công bằng giữa thuật toán)
     random.seed(1337)

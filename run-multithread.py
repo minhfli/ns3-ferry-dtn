@@ -8,11 +8,12 @@ import threading
 import concurrent.futures
 import time 
 from datetime import datetime, timedelta
+import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260301_8am"
-# BATCH_ID = "20260228" #! TEMPORARY for rerun
-BATCH_ID = datetime.now().strftime("%Y%m%d")
+BATCH = "20260305_2am"
+BATCH_ID = "20260305" #! TEMPORARY for rerun
+# BATCH_ID = datetime.now().strftime("%Y%m%d")
 
 
 # ============================================================
@@ -23,12 +24,13 @@ base_params = {
     "vi": False,
     "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
-    "name": "PIGEON",
+    "name": "TABADLA",
     "run": "exp",
-    "simTime": 10000,
+    "simTime": 7500,
     "commRange": 150,
     "ferryHeight": 50,
-    "areaWidth": 4000,
+    "areaWidth": 3000,
+    "ferrySpeed": 10,
 }
 # ============================================================
 # Parameter sweep grid
@@ -49,22 +51,22 @@ default_grid = {
 }
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "TABAF"],
+    "name": [ "TABADLA"],
 
-    "nGrounds": [30],
+    "nGrounds": [25],
     "nFerrys": [1,3,5,10],
 
     "groundBufferSize": [1000],
     "ferryBufferSize": [500],
 
     "bundleGenRate": [10.0, 30.0],
-    "bundleTTL": [300000000, 600000000, 1200000000],
+    "bundleTTL": [ 600000000, 1200000000],
 
-    "ferryComm": [True],
+    "ferryComm": [False, True],
 }
 
 N_SEEDS = 3
-MAX_WORKERS = 12
+MAX_WORKERS = 8
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling
@@ -113,6 +115,9 @@ def run_single_simulation(cmd, config_name):
         if not stop_event.is_set():
             end_time = time.perf_counter() # Kết thúc bấm giờ
             duration = end_time - start_time
+            if duration < 20.0 and duration > 2.0:
+                print(f"[WARNING] {config_name} - Thời gian chạy bất thường: {duration:.2f} giây")
+                print(f"  -> Command: {cmd}")
             print(f"[DONE] {config_name} - Thời gian chạy: {duration:.2f} giây")
 
 def signal_handler(sig, frame):
@@ -146,6 +151,14 @@ if __name__ == "__main__":
     if os.path.basename(os.getcwd()) == "scratch":
         os.chdir("..")
 
+    # load comandline
+    command_index = None
+    parser = argparse.ArgumentParser(description="Run multiple simulations with different parameters.")
+    parser.add_argument("--command-index", type=int, default=None, help="Xuất lệnh của cấu hình thứ N (bắt đầu từ 1) mà không thực thi.")
+    args = parser.parse_args()
+    if args.command_index:
+        command_index = args.command_index - 1 # Chuyển sang index bắt đầu từ 0
+
     # Đăng ký hàm xử lý sự kiện Ctrl+C
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -178,6 +191,22 @@ if __name__ == "__main__":
             config_name = f"Config {config_id + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo}"
             tasks.append((cmd, config_name))
 
+
+    if command_index is not None:
+        config = all_configs[command_index] 
+        for seed_id, random_seed in enumerate(seed_list):
+            params = copy.deepcopy(base_params)
+            params.update(config)
+            params["seed"] = random_seed
+            params["batch"] = "default"
+            params["vi"] = True
+            algo = params["name"]
+            params["run"] = "debug"
+            cmd = build_cmd(PROGRAM, params)
+            config_name = f"Config {command_index + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo}"
+            print(f"\n[COMMAND ONLY] {config_name} | Seed {seed_id + 1}/{N_SEEDS}")
+            print(cmd) 
+        exit(0)
     print("==============================================")
     print(f"Total parameter configurations: {len(all_configs)}")
     print(f"Seeds per configuration: {N_SEEDS}")

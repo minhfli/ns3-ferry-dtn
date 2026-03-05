@@ -21,14 +21,15 @@ class SingleRoutePigeonDtnApp : public BaseDtnApp {
         return tid;
     }
     virtual void InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) override;
-    virtual std::vector<uint32_t> GetServingNodeRoute() override;
 
     protected:
+    virtual std::vector<uint32_t> GetServingNodeRoute() override;
+
+    virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp);
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
 
     private:
-    uint32_t m_mode;
     uint32_t m_nextFerryIndex;
     uint32_t m_nextPigeonIndex;
     std::vector<uint32_t> m_route;
@@ -41,12 +42,11 @@ class SingleRoutePigeonDtnApp : public BaseDtnApp {
     int m_direction;
 
     void ScheduleNextWaypoint();
-    void ScheduleFerryWaypoint();
-    void SchedulePigeonWaypoint();
-    void CheckModeSwitch();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(SingleRoutePigeonDtnApp);
+
+#pragma region Mobility
 
 void SingleRoutePigeonDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) { // ignore the input
     if (!SIRA::created) {
@@ -60,209 +60,167 @@ void SingleRoutePigeonDtnApp::InitializeMobility(const std::vector<uint32_t>& se
 
     Vector3D currentPos = m_mobility->GetPosition();
 
-    m_nextFerryIndex = SIRA::GetClosestIndex({ currentPos.x, currentPos.y });
+    m_nextFerryIndex = SIRA::GetClosestIndex({ currentPos.x, currentPos.y }) - m_direction;
 
     Simulator::Schedule(Seconds(0), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
 }
 
 
-void SingleRoutePigeonDtnApp::CheckModeSwitch() {
-    Vector3D currentPos = m_mobility->GetPosition();
-
-    point2D relative = { SIRA::points[SIRA::route[m_nextFerryIndex]].x - currentPos.x,
-                         SIRA::points[SIRA::route[m_nextFerryIndex]].y - currentPos.y };
-
-    double distance = relative.length();
-    double time = distance / config.ferrySpeed;
-
-    double currentTime = Simulator::Now().GetSeconds();
-    auto deadlines = GetDeadlines();
-    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-
-    std::vector<uint32_t> pigeonRoute;
-    pigeonRoute = TSPDeadlineBasedGA(
-        groundNodePos,
-        deadlines,
-        SIRA::points[SIRA::route[m_nextFerryIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed
-    );
-    pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
-        groundNodePos,
-        deadlines,
-        SIRA::points[SIRA::route[m_nextFerryIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed,
-        pigeonRoute
-    );
-
-    uint32_t cost = ComputeDeadlineCost(
-        pigeonRoute,
-        groundNodePos,
-        deadlines,
-        SIRA::points[SIRA::route[m_nextFerryIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed
-    );
-}
-
 void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
     RemoveExpiredBundles();
-    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-    if (m_mode == MODE_FERRY) {
-        ScheduleFerryWaypoint();
-    }
-    else if (m_mode == MODE_PIGEON) {
-        SchedulePigeonWaypoint();
-    }
-    else {
-        m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-    }
-    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
-    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-}
+    auto deadlines = GetDeadlines();
 
-void SingleRoutePigeonDtnApp::ScheduleFerryWaypoint() {
+    uint32_t cost1 = 0; // best cost if go to next waypoint and follow the best pigeon route
+    uint32_t cost2 = 0; // best cost if start pigeon route now
+    double currentTime = Simulator::Now().GetSeconds();
     Vector3D currentPos = m_mobility->GetPosition();
-    point2D target = SIRA::points[SIRA::route[m_nextFerryIndex]];
-    point2D relative = { target.x - currentPos.x,
-                         target.y - currentPos.y };
-    double timeToReach = relative.length() / config.ferrySpeed;
 
-    if (!m_buffer.empty()) { // deadline check
-        double currentTime = Simulator::Now().GetSeconds();
-        auto deadlines = GetDeadlines();
-        uint32_t cost;
+    m_nextFerryIndex = (m_nextFerryIndex + m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
 
-        m_pigeonRoute = TSPDeadlineBasedGA(
-            groundNodePos, deadlines,
-            groundNodePos[m_ferryRoute[m_nextFerryIndex]], // starting pos
-            currentTime + timeToReach,
-            config.ferrySpeed
-        );
-        m_pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
-            groundNodePos, deadlines,
-            groundNodePos[m_ferryRoute[m_nextFerryIndex]], // starting pos
+    point2D nextFerryPos = groundNodePos[m_ferryRoute[m_nextFerryIndex]];
+    point2D nextWaypoint = nextFerryPos;
+
+    if (m_buffer.size() > 0) {
+
+        point2D relative = { nextFerryPos.x - currentPos.x,
+                             nextFerryPos.y - currentPos.y };
+        double distance = relative.length();
+        double timeToReach = distance / config.ferrySpeed;
+        auto route1 = TSPDeadlineHelper(
+            groundNodePos,
+            deadlines,
+            nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
-            m_pigeonRoute,
-            &cost
+            &cost1
         );
-        // cannot sastify all deadlines or buffer full -> switch to pigeon mode
-        if (cost < m_buffer.size() || m_buffer.size() >= m_maxBufferSize) {
-            m_pigeonRoute = TSPDeadlineBasedGA(
-                groundNodePos, deadlines,
-                { currentPos.x, currentPos.y }, // starting pos
-                currentTime,
-                config.ferrySpeed
-            );
-            m_pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
-                groundNodePos,
-                deadlines,
-                { currentPos.x, currentPos.y }, // starting pos
-                currentTime,
-                config.ferrySpeed,
-                m_pigeonRoute
-            );
-            m_mode = MODE_PIGEON;
-            m_nextPigeonIndex = 0;
+        auto route2 = TSPDeadlineHelper(
+            groundNodePos,
+            deadlines,
+            { currentPos.x, currentPos.y },
+            currentTime,
+            config.ferrySpeed,
+            &cost2
+        );
 
-            SchedulePigeonWaypoint();
-            NS_LOG_UNCOND("Switch to pigeon mode");
-            return;
+        uint32_t firstPigeonNode = groundNodeIps[route2[0]].Get();
+        uint32_t nextFerryNode = groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get();
+
+        if (firstPigeonNode != nextFerryNode) {
+            double dist1 = distance; // distance to next ferry node
+            double value1 = (double)cost1 / dist1;
+            double dist2 = dist(groundNodePos[route2[0]], { currentPos.x, currentPos.y }); // distance to first pigeon route node
+            double value2 = (double)cost2 / dist2;
+
+            double randVal = m_rand->GetValue(0.0, value1 + value2);
+            if (randVal < value1) {
+                nextWaypoint = nextFerryPos;
+            }
+            else {
+                nextWaypoint = groundNodePos[route2[0]];
+                for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+                    if (m_ferryRoute[i] == route2[0]) {
+                        m_nextFerryIndex = i;
+                        break;
+                    }
+                }
+            }
         }
     }
-    // set velocity
+
+    point2D relative = { nextWaypoint.x - currentPos.x,
+                        nextWaypoint.y - currentPos.y };
+    double distance = relative.length();
+    double timeToReach = distance / config.ferrySpeed;
+
     if (timeToReach < 0.1) {
-        Simulator::Schedule(Seconds(config.mobilityWaitTime), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        return;
-    }
-    Simulator::Schedule(Seconds(timeToReach), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
-
-    point2D velocity;
-    velocity.x = relative.x / timeToReach;
-    velocity.y = relative.y / timeToReach;
-
-    m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
-
-    // update target
-    m_nextFerryIndex = (m_nextFerryIndex + m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
-}
-
-void SingleRoutePigeonDtnApp::SchedulePigeonWaypoint() {
-    Vector3D currentPos = m_mobility->GetPosition();
-    while (m_nextPigeonIndex < m_pigeonRoute.size()) { // clean up the pigeon route
-        uint32_t nodeIdx = m_pigeonRoute[m_nextPigeonIndex];
-        uint32_t nodeIp = groundNodeIps[nodeIdx].Get();
-        bool noBundleToDeliver = true;
-        for (Bundle b : m_buffer) {
-            if (b.destination.Get() == nodeIp) {
-                noBundleToDeliver = false;
-                break;
-            }
-        }
-        if (noBundleToDeliver) {
-            m_nextPigeonIndex++; // skip the next node in route
-        }
-        else {
-            break;
-        }
-    }
-    if (m_nextPigeonIndex >= m_pigeonRoute.size()) { // return to ferry
-        m_mode = MODE_FERRY;
-        Vector3D currentPos = m_mobility->GetPosition();
-        point2D pos = { currentPos.x, currentPos.y };
-        //find closest
-        m_nextFerryIndex = 0;
-        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
-            if (dist(pos, groundNodePos[m_ferryRoute[i]]) < dist(pos, groundNodePos[m_ferryRoute[m_nextFerryIndex]])) {
-                m_nextFerryIndex = i;
-            }
-        }
-        ScheduleFerryWaypoint();
-        // NS_LOG_UNCOND("Switch to ferry mode");
-        return;
-    }
-    point2D relative = { groundNodePos[m_pigeonRoute[m_nextPigeonIndex]].x - currentPos.x,
-                         groundNodePos[m_pigeonRoute[m_nextPigeonIndex]].y - currentPos.y };
-    double timeToReach = relative.length() / config.ferrySpeed;
-
-    if (timeToReach < 0.1) {
         Simulator::Schedule(Seconds(1.0), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
-        m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
         return;
     }
+    m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
     Simulator::Schedule(Seconds(timeToReach), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
 
-    point2D velocity;
-    velocity.x = relative.x / timeToReach;
-    velocity.y = relative.y / timeToReach;
-    m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
-
-    m_nextPigeonIndex++;
+    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
+    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 }
-
 std::vector<uint32_t> SingleRoutePigeonDtnApp::GetServingNodeRoute() {
-    if (m_mode == MODE_FERRY) {
-        uint32_t len = m_ferryRoute.size();
-        std::vector<uint32_t> route;
-        for (uint32_t i = 0; i < len; i++) {
-            route.push_back(groundNodeIps[m_ferryRoute[(m_nextFerryIndex + i * m_direction + len) % len]].Get());
-        }
-        return route;
+    std::vector<uint32_t> route;
+    uint32_t len = m_ferryRoute.size();
+    for (uint32_t i = 0; i < len; i++) {
+        route.push_back(groundNodeIps[m_ferryRoute[(i * m_direction + m_nextFerryIndex + len) % len]].Get());
     }
-    else if (m_mode == MODE_PIGEON) {
-        uint32_t len = m_pigeonRoute.size();
-        std::vector<uint32_t> route;
-        for (uint32_t i = m_nextPigeonIndex; i < len; i++) {
-            route.push_back(groundNodeIps[m_pigeonRoute[i]].Get());
-        }
-        return route;
-    }
-    else {
-        return {};
-    }
+    return route;
+    // return { groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get() };
 }
 
+#pragma endregion
+#pragma region Bundle
+
+Bundle* SingleRoutePigeonDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
+    RemoveExpiredBundles();
+    if (m_buffer.empty()) return nullptr;
+    auto neighbor = m_neighbor[neighborIp.Get()];
+
+    if (m_mode == MODE_FERRY) {
+        if (neighbor.operationMode == MODE_FERRY) { //* FERRY to FERRY: Send bundle that can travel faster
+            // filter node that neighbor will go to it faster
+            // NS_LOG_UNCOND("check1");
+            std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
+            // NS_LOG_UNCOND("check2");
+
+            for (Bundle& bundle : m_buffer) {
+                if (bundle.flag_waitingAck) continue;
+                if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
+                    return &bundle;
+                }
+            }
+            // NS_LOG_UNCOND("check3");
+
+        }
+        if (neighbor.operationMode == MODE_PIGEON) { //* FERRY to PIGEON: Send bundle that must meet deadline
+            std::map<uint32_t, double> neighborExpectedArrival;
+            for (uint32_t i = 0; i < neighbor.route.size(); i++) {
+                neighborExpectedArrival[neighbor.route[i]] = (double)neighbor.expectedArrival[i] / 1000000.0;
+            }
+            for (Bundle& bundle : m_buffer) {
+                if (bundle.flag_waitingAck) continue;
+                if (neighborExpectedArrival.find(bundle.destination.Get()) == neighborExpectedArrival.end())
+                    continue;
+                double expect = neighborExpectedArrival[bundle.destination.Get()];
+                double bundleExpiration = bundle.creationTime + config.bundleTTL;
+                bundleExpiration /= 1000000.0;
+                if (bundleExpiration + config.minExpectedArrivalDifference < expect) {
+                    return &bundle;
+                }
+            }
+        }
+    }
+    if (m_mode == MODE_PIGEON) {
+        if (neighbor.operationMode == MODE_FERRY) { //* PIGEON to FERRY: Send nothing
+            return nullptr;
+        }
+        if (neighbor.operationMode == MODE_PIGEON) { //* PIGEON to PIGEON: Send bundle that can travel faster, only with bundle that cannot meet deadline
+            // filter node that neighbor will go to it faster
+            std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
+
+            for (Bundle& bundle : m_buffer) {
+                if (bundle.flag_waitingAck) continue;
+                double expect = (double)CalExpectedArrival(bundle.destination.Get(), GetServingNodeRoute(), GetServingExpectedArrival());
+                double bundleExpiration = bundle.creationTime + config.bundleTTL;
+                bundleExpiration /= 1000000.0;
+                if (bundleExpiration + config.minExpectedArrivalDifference < expect) {
+                    continue; // only send bundle that cannot meet deadlines
+                }
+                if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
+                    return &bundle;
+                }
+
+            }
+        }
+    }
+    return nullptr;
+}
+
+#pragma endregion
 #endif 

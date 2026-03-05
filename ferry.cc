@@ -30,6 +30,7 @@
 #include "ferry_app/pigeon-dtn-app.h"
 #include "ferry_app/tabaf-dtn-app.h"
 #include "ferry_app/sr-pigeon-dtn-app.h"
+#include "ferry_app/tabadla-dtn-app.h"
 
 
 #include <vector>
@@ -54,6 +55,9 @@ Ptr<BaseDtnApp> createApp() {
     }
     if (config.ALGORITHM_NAME == "SR_PIGEON") {
         return CreateObject<SingleRoutePigeonDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "TABADLA") {
+        return CreateObject<TabaDlaDtnApp>();
     }
     return nullptr;
 }
@@ -197,6 +201,9 @@ int main(int argc, char* argv[]) {
         groupCount = 1;
     }
     if (config.ALGORITHM_NAME == "SR_PIGEON") {
+        groupCount = 1;
+    }
+    if (config.ALGORITHM_NAME == "TABADLA") {
         groupCount = 1;
     }
 

@@ -45,7 +45,6 @@ class PigeonDtnApp : public BaseDtnApp {
     }
     virtual void InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) override;
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
-    virtual std::vector<point2D> GetServingWaypointRoute() override;
 
     protected:
 
@@ -112,38 +111,15 @@ std::vector<uint32_t> PigeonDtnApp::GetServingNodeRoute() {
         uint32_t len = m_ferryOrder.size();
         std::vector<uint32_t> route;
         for (uint32_t i = 0; i < len; i++) {
-            route.push_back(m_servingNodes[m_ferryOrder[(m_ferryNextIndex + i) % len]]);
+            route.push_back(m_servingNodes[m_ferryOrder[(m_ferryNextIndex + i - 1 + len) % len]]);
         }
         return route;
     }
     else if (m_mode == MODE_PIGEON) {
         uint32_t len = m_pigeonOrder.size();
         std::vector<uint32_t> route;
-        for (uint32_t i = m_pigeonNextIndex; i < len; i++) {
+        for (uint32_t i = m_pigeonNextIndex - 1; i < len; i++) {
             route.push_back(groundNodeIps[m_pigeonOrder[i]].Get());
-        }
-        return route;
-    }
-    else {
-        return {};
-    }
-}
-
-std::vector<point2D> PigeonDtnApp::GetServingWaypointRoute() {
-
-    if (m_mode == MODE_FERRY) {
-        uint32_t len = m_ferryOrder.size();
-        std::vector<point2D> route;
-        for (uint32_t i = 0; i < len; i++) {
-            route.push_back(m_ferryPoints[m_ferryOrder[(m_ferryNextIndex + i) % len]]);
-        }
-        return route;
-    }
-    else if (m_mode == MODE_PIGEON) {
-        uint32_t len = m_pigeonOrder.size();
-        std::vector<point2D> route;
-        for (uint32_t i = m_pigeonNextIndex; i < len; i++) {
-            route.push_back(groundNodePos[m_pigeonOrder[i]]);
         }
         return route;
     }
@@ -180,78 +156,64 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
     auto deadlines = GetDeadlines();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
-    std::vector<uint32_t> pigeonRoute;
-    pigeonRoute = TSPDeadlineBasedGA(
-        groundNodePos,
-        deadlines,
-        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed
-    );
-    pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
-        groundNodePos,
-        deadlines,
-        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed,
-        pigeonRoute
-    );
-
-    uint32_t cost = ComputeDeadlineCost(
-        pigeonRoute,
-        groundNodePos,
-        deadlines,
-        m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
-        currentTime + time,
-        config.ferrySpeed
-    );
-    // cannot sastify all deadlines or buffer full -> switch to pigeon mode
-    if (cost < m_buffer.size() || m_buffer.size() >= m_maxBufferSize) {
-        pigeonRoute = TSPDeadlineBasedGA(
+    if (m_buffer.size() > 0) {
+        std::vector<uint32_t> pigeonRoute;
+        uint32_t cost;
+        pigeonRoute = TSPDeadlineHelper(
             groundNodePos,
             deadlines,
-            { currentPos.x, currentPos.y }, // starting pos
-            currentTime,
-            config.ferrySpeed
-        );
-        pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
-            groundNodePos,
-            deadlines,
-            { currentPos.x, currentPos.y }, // starting pos
-            currentTime,
+            m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
+            currentTime + time,
             config.ferrySpeed,
-            pigeonRoute
+            &cost
         );
-        m_mode = MODE_PIGEON;
-        m_pigeonOrder = pigeonRoute;
-        m_pigeonNextIndex = 0;
 
-        SchedulePigeonWaypoint();
-        // NS_LOG_UNCOND("Switch to pigeon mode");
+        // cannot sastify all deadlines or buffer full -> switch to pigeon mode
+        if (cost < m_buffer.size() || m_buffer.size() >= m_maxBufferSize) {
+            uint32_t newCost;
+
+            pigeonRoute = TSPDeadlineHelper(
+                groundNodePos,
+                deadlines,
+                { currentPos.x, currentPos.y }, // starting pos
+                currentTime,
+                config.ferrySpeed,
+                &newCost
+            );
+
+            if (newCost < cost || m_buffer.size() >= m_maxBufferSize) {
+                m_mode = MODE_PIGEON;
+                m_pigeonOrder = pigeonRoute;
+                m_pigeonNextIndex = 0;
+
+                SchedulePigeonWaypoint();
+                // NS_LOG_UNCOND("Switch to pigeon mode");
+                return;
+            }
+        }
+    }
+
+    FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
+
+    m_ferryNextIndex = (m_ferryNextIndex + 1) % m_ferryOrder.size();
+
+    if (time < 0.1) {
+        // handle special case: when there only one node
+        // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
+        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(config.mobilityWaitTime), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
         return;
     }
-    else {
-        FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
-
-        m_ferryNextIndex = (m_ferryNextIndex + 1) % m_ferryOrder.size();
-
-        if (time < 0.1) {
-            // handle special case: when there only one node
-            // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
-            m_mobilityScheduleEvent = Simulator::Schedule(Seconds(config.mobilityWaitTime), &PigeonDtnApp::ScheduleNextWaypoint, this);
-            m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-            return;
-        }
 
 
-        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
 
-        point2D velocity;
-        velocity.x = relative.x / distance * config.ferrySpeed;
-        velocity.y = relative.y / distance * config.ferrySpeed;
+    point2D velocity;
+    velocity.x = relative.x / distance * config.ferrySpeed;
+    velocity.y = relative.y / distance * config.ferrySpeed;
 
-        m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
-    }
+    m_mobility->SetVelocity(Vector(velocity.x, velocity.y, 0));
+
 }
 
 void PigeonDtnApp::SchedulePigeonWaypoint() {

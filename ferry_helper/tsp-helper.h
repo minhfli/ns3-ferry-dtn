@@ -310,6 +310,20 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
     return order;
 }
 
+std::vector<uint32_t> TSPDeadlineHelper(
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<double>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    uint32_t* best_cost = nullptr,
+    const uint32_t population_size = 100,
+    const uint32_t max_generation = 2000
+) {
+    std::vector<uint32_t> order = TSPDeadlineBasedGA(points, deadlines, starting_pos, starting_time, speed, population_size, max_generation);
+    order = TSPDeadlineBasedTwoOptOptimize(points, deadlines, starting_pos, starting_time, speed, order, best_cost);
+    return order;
+}
 #pragma endregion
 
 #endif

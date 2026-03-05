@@ -26,6 +26,8 @@
 #include <cmath>
 #include <unordered_map>
 #include <map>
+#include <unordered_set>
+#include <set>
 
 using namespace ns3;
 
@@ -39,6 +41,8 @@ struct NeighborInfomation {
     std::vector<uint64_t> expectedArrival; // expected arrival time of each waypoint in route
     uint64_t lastContactTime;
     std::map<uint32_t, uint32_t> bufferState; // buffer state which is a map of ip and count of bundle that need to reach it
+    uint8_t operationMode;
+    uint8_t group;
 
     NeighborInfomation() : lastContactTime(0) {}
 
@@ -89,6 +93,8 @@ class BaseDtnApp : public Application {
     std::vector<uint64_t> GetServingExpectedArrival();
     std::map<uint32_t, uint32_t> GetBundleCount() const;
     std::vector<std::vector<double>> GetDeadlines();
+    // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
+    std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
 
 
     void SetVisitTime(uint32_t nodeIp, uint64_t time);
@@ -299,6 +305,20 @@ std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
     }
     return deadlines;
 }
+
+std::set<uint32_t> BaseDtnApp::GetFasterNeighborWaypoints(NeighborInfomation neighbor) {
+    std::set<uint32_t> fasterWaypoints;
+
+    for (uint32_t i = 0; i < neighbor.route.size(); i++) {
+        uint32_t node = neighbor.route[i];
+        double expect2 = (double)neighbor.expectedArrival[i] / 1000000.0;
+        double expect1 = (double)CalExpectedArrival(node, GetServingNodeRoute(), GetServingExpectedArrival()) / 1000000.0;
+        if (expect1 == 0 || expect1 - expect2 > config.minExpectedArrivalDifference)
+            // neighbor go to node that not in current route or go faster
+            fasterWaypoints.insert(node);
+    }
+    return fasterWaypoints;
+}
 #pragma endregion
 #pragma region Sending 
 void BaseDtnApp::Beacon() {
@@ -488,8 +508,8 @@ Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
 
     for (uint32_t i = 0; i < neighbor.route.size(); i++) {
         uint32_t node = neighbor.route[i];
-        double expect2 = neighbor.expectedArrival[i];
-        double expect1 = CalExpectedArrival(node, GetServingNodeRoute(), GetServingExpectedArrival());
+        double expect2 = (double)neighbor.expectedArrival[i] / 1000000.0;
+        double expect1 = (double)CalExpectedArrival(node, GetServingNodeRoute(), GetServingExpectedArrival()) / 1000000.0;
         if (expect1 == 0 || expect1 - expect2 > config.minExpectedArrivalDifference)
             // neighbor go to node that not in current route or go faster
             nodeFilter.push_back(node);
@@ -518,6 +538,7 @@ void BaseDtnApp::Schedule_FerryToGround_Transfer(Ipv4Address groundIp) {
     }
 
     Simulator::Schedule(jitter, &BaseDtnApp::SendFerryHello, this, groundIp);
+
 }
 
 void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
@@ -642,6 +663,7 @@ void BaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (topHeader.GetNodeIP() == m_myIp) continue;
         NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << nodeId[m_myIp.Get()] << " Receive " << topHeader.GetMetaName() << " from " << nodeId[topHeader.GetNodeIP().Get()]);
 
+
         auto packetType = topHeader.GetType();
 
         if (packetType == MessageTypeHeader::FERRY_BEACON) {
@@ -714,6 +736,9 @@ void BaseDtnApp::OnGroundReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pac
     packet->RemoveHeader(ferryRouteHeader);
     m_neighbor[sourceIp.Get()].route = ferryRouteHeader.GetWaypoints();
     m_neighbor[sourceIp.Get()].expectedArrival = ferryRouteHeader.GetExpectedArrival();
+    m_neighbor[sourceIp.Get()].group = ferryRouteHeader.GetGroup();
+    m_neighbor[sourceIp.Get()].operationMode = ferryRouteHeader.GetMode();
+
 
     BufferStateHeader bufferStateHeader;
     packet->RemoveHeader(bufferStateHeader);
@@ -771,6 +796,7 @@ void BaseDtnApp::OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) 
 }
 
 void BaseDtnApp::OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+
     if (m_nodeType == NODE_TYPE_GROUND) return;
 
     VisitTimeHeader vTimeHeader;
@@ -792,6 +818,8 @@ void BaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pack
     packet->RemoveHeader(ferryRouteHeader);
     m_neighbor[sourceIp.Get()].route = ferryRouteHeader.GetWaypoints();
     m_neighbor[sourceIp.Get()].expectedArrival = ferryRouteHeader.GetExpectedArrival();
+    m_neighbor[sourceIp.Get()].group = ferryRouteHeader.GetGroup();
+    m_neighbor[sourceIp.Get()].operationMode = ferryRouteHeader.GetMode();
 
     BufferStateHeader bufferStateHeader;
     packet->RemoveHeader(bufferStateHeader);

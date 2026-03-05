@@ -52,7 +52,7 @@ struct Config {
     double bundleGenRate = 5.0; // 1 bundle every ... seconds
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
-    double minExpectedArrivalDifference = 10; // (seconds), min expected arrival difference (2 * Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
+    double minExpectedArrivalDifference = 5; // (seconds), min expected arrival difference (Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
 
     bool enableFerryComm = false;
 
@@ -64,6 +64,7 @@ struct Config {
     uint32_t positionLogInterval = 250; // ms ~ 0.25s
 
     uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
+    double SR_PIGEON_reversePercentage = 0.3;
 
     // waypoint selection config, for Tabaf and its derived algorithm
     uint32_t TABAF_waypointSelectMode = SELECT_MODE_RANDOM_MAXIMUM;
