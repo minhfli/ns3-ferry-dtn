@@ -92,7 +92,9 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
             nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
-            &cost1
+            &cost1,
+            50,
+            200
         );
         auto route2 = TSPDeadlineHelper(
             groundNodePos,
@@ -100,7 +102,9 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
             { currentPos.x, currentPos.y },
             currentTime,
             config.ferrySpeed,
-            &cost2
+            &cost2,
+            50,
+            200
         );
 
         uint32_t firstPigeonNode = groundNodeIps[route2[0]].Get();
@@ -108,22 +112,42 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
 
         if (firstPigeonNode != nextFerryNode) {
             double dist1 = distance; // distance to next ferry node
-            double value1 = (double)cost1 / dist1;
+            double value1 = (double)(cost1 + 1) / dist1;
             double dist2 = dist(groundNodePos[route2[0]], { currentPos.x, currentPos.y }); // distance to first pigeon route node
-            double value2 = (double)cost2 / dist2;
+            double value2 = (double)(cost2 + 1) / dist2;
 
-            double randVal = m_rand->GetValue(0.0, value1 + value2);
-            if (randVal < value1) {
-                nextWaypoint = nextFerryPos;
-            }
-            else {
-                nextWaypoint = groundNodePos[route2[0]];
-                for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
-                    if (m_ferryRoute[i] == route2[0]) {
-                        m_nextFerryIndex = i;
-                        break;
+            if (config.waypointSelectMode == DETERMINISTIC) {
+                if (value1 >= value2) {
+                    nextWaypoint = nextFerryPos;
+                }
+                else {
+                    nextWaypoint = groundNodePos[route2[0]];
+                    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+                        if (m_ferryRoute[i] == route2[0]) {
+                            m_nextFerryIndex = i;
+                            break;
+                        }
                     }
                 }
+            }
+            else if (config.waypointSelectMode == PROBABILISTIC) {
+                double randVal = m_rand->GetValue(0.0, value1 + value2);
+                if (randVal < value1) {
+                    nextWaypoint = nextFerryPos;
+                }
+                else {
+                    nextWaypoint = groundNodePos[route2[0]];
+                    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+                        if (m_ferryRoute[i] == route2[0]) {
+                            m_nextFerryIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            else {
+                NS_LOG_UNCOND("FATAL: Unknown waypoint select mode " << config.waypointSelectMode);
+                NS_ASSERT_MSG(false, "Unknown waypoint select mode");
             }
         }
     }
