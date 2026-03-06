@@ -31,7 +31,8 @@
 #include "ferry_app/tabaf-dtn-app.h"
 #include "ferry_app/sr-pigeon-dtn-app.h"
 #include "ferry_app/tabadla-dtn-app.h"
-
+#include "ferry_app/tabara-dtn-app.h"
+#include "ferry_app/taba2s-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -59,7 +60,23 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "TABADLA") {
         return CreateObject<TabaDlaDtnApp>();
     }
+    if (config.ALGORITHM_NAME == "TABARA") {
+        return CreateObject<TabaraDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "TABA2S") {
+        return CreateObject<Taba2sDtnApp>();
+    }
     return nullptr;
+}
+uint32_t GetAlgoGroupCount() {
+    if (config.ALGORITHM_NAME == "SIRA") return 1;
+    if (config.ALGORITHM_NAME == "PIGEON") return config.nFerrys;
+    if (config.ALGORITHM_NAME == "TABAF") return 1;
+    if (config.ALGORITHM_NAME == "SR_PIGEON") return 1;
+    if (config.ALGORITHM_NAME == "TABADLA") return 1;
+    if (config.ALGORITHM_NAME == "TABARA")  return 1;
+    if (config.ALGORITHM_NAME == "TABA2S")  return 1;
+    return 1;
 }
 
 // ===========================================================================
@@ -190,22 +207,7 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Application
     // ==========================================================
-    uint32_t groupCount = 0;
-    if (config.ALGORITHM_NAME == "SIRA") {
-        groupCount = 1;
-    }
-    if (config.ALGORITHM_NAME == "PIGEON") {
-        groupCount = config.nFerrys;
-    }
-    if (config.ALGORITHM_NAME == "TABAF") {
-        groupCount = 1;
-    }
-    if (config.ALGORITHM_NAME == "SR_PIGEON") {
-        groupCount = 1;
-    }
-    if (config.ALGORITHM_NAME == "TABADLA") {
-        groupCount = 1;
-    }
+    uint32_t groupCount = GetAlgoGroupCount();
 
 
     auto clusters = Clustering::KMeans(groundNodePos, groupCount);

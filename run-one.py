@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "TABADLA", # algorithm name
+    "name": "TABA2S", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file

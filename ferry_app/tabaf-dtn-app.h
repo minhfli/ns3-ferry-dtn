@@ -34,7 +34,6 @@ class TabafDtnApp : public BaseDtnApp {
     virtual void CalculateNodeScore();
     virtual void ChooseNextServingNode();
 
-    private:
     uint32_t m_nextServingNode = 0;
     std::vector<double> m_nodeScore;
 
@@ -126,14 +125,18 @@ void TabafDtnApp::ChooseNextServingNode() {
     CalculateNodeScore();
 
     if (config.waypointSelectMode == DETERMINISTIC) {
+
         double maxScore = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
+
         std::vector<uint32_t> validNodes;
         for (int i = 0; i < m_nodeScore.size(); i++) {
-            if (m_nodeScore[i] == maxScore) {
+            if (m_nodeScore[i] >= maxScore) {
                 validNodes.push_back(groundNodeIps[i].Get());
             }
         }
+
         m_nextServingNode = validNodes[m_rand->GetInteger(0, validNodes.size() - 1)];
+
         return;
     }
 

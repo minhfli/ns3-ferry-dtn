@@ -36,23 +36,9 @@ base_params = {
 # ============================================================
 # Parameter sweep grid
 # ============================================================
-default_grid = {
-    "name": ["SIRA", "PIGEON", "TABAF"],
-
-    "nGrounds": [30],
-    "nFerrys": [1,3,5,10],
-
-    "groundBufferSize": [1000],
-    "ferryBufferSize": [500],
-
-    "bundleGenRate": [10.0, 30.0],
-    "bundleTTL": [300000000, 600000000, 1200000000],
-
-    "ferryComm": [False, True],
-}
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "TABADLA"],
+    "name": [ "TABADLA"],
 
     "nGrounds": [30],
     "nFerrys": [1, 3, 5, 7, 10, 12, 15],
@@ -68,9 +54,6 @@ param_grid = { # change or set to default grid for custom run
 
 algo_variants= {
     "PIGEON": {
-        "default": {
-            "pigeonReturn": 0
-        },
         "RC": { # return closest
             "pigeonReturn": 1,
         },
@@ -79,9 +62,9 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "DETERMINISTIC",
         },
-        "PWS": {
-            "waypointSelectMode": "PROBABILISTIC",
-        },
+        # "PWS": {
+        #     "waypointSelectMode": "PROBABILISTIC",
+        # },
     },
     "SR_PIGEON": {
         "default": {
@@ -96,10 +79,10 @@ algo_variants= {
         #     "waypointSelectMode": "DETERMINISTIC",
         #     "TABADLA_addBundleValue": True
         # },
-        "PWS_noB": {
-            "waypointSelectMode": "PROBABILISTIC",
-            "TABADLA_addBundleValue": False
-        },
+        # "PWS_noB": {
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "TABADLA_addBundleValue": False
+        # },
         "DWS_noB": {
             "waypointSelectMode": "DETERMINISTIC",
             "TABADLA_addBundleValue": False
@@ -108,7 +91,7 @@ algo_variants= {
 }
 
 N_SEEDS = 3
-MAX_WORKERS = 10
+MAX_WORKERS = 8
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling
@@ -158,8 +141,12 @@ def run_single_simulation(cmd, config_name):
             end_time = time.perf_counter() # Kết thúc bấm giờ
             duration = end_time - start_time
             if duration < 20.0 and duration > 2.0:
+                # > runtime if skip, << expected runtime
+                
                 print(f"[WARNING] {config_name} - Thời gian chạy bất thường: {duration:.2f} giây")
                 print(f"  -> Command: {cmd}")
+                
+                
             print(f"[DONE] {config_name} - Thời gian chạy: {duration:.2f} giây")
 
 def signal_handler(sig, frame):

@@ -201,6 +201,7 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     else {
         m_bundleGenRate = rate;
     }
+    nodeGenRate[m_myIp.Get()] = m_bundleGenRate;
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + bundleGenRand->GetValue(0.0, averageBundleTime);
     Simulator::Schedule(Seconds(startTime + config.startGeneraionTime), &BaseDtnApp::GenerateBundle, this);
