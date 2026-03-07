@@ -37,7 +37,7 @@ void TabaraDtnApp::CalculateNodeScore() {
 
     std::map<uint32_t, uint32_t> bundleCountMap = GetBundleCount();
 
-    for (int i = 0; i < config.nGrounds; i++) {
+    for (uint32_t i = 0; i < config.nGrounds; i++) {
         Vector3D currentPos = m_mobility->GetPosition();
         point2D relative = { groundNodePos[i].x - currentPos.x,
                              groundNodePos[i].y - currentPos.y };

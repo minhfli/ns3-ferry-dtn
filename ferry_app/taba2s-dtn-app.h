@@ -40,7 +40,7 @@ void Taba2sDtnApp::CalculateNodeScore() {
     auto deadlines = GetDeadlines();
     double max2stepDeadline = 0;
 
-    for (int i = 0; i < config.nGrounds; i++) {
+    for (uint32_t i = 0; i < config.nGrounds; i++) {
         point2D relative1 = { groundNodePos[i].x - currentPos.x,
                               groundNodePos[i].y - currentPos.y };
         double dist1 = relative1.length();
@@ -53,7 +53,7 @@ void Taba2sDtnApp::CalculateNodeScore() {
             }
         }
         m_nodeScore[i] = count1;
-        for (int j = 0; j < config.nGrounds; j++) {
+        for (uint32_t j = 0; j < config.nGrounds; j++) {
             if (i == j) continue;
             point2D relative2 = { groundNodePos[j].x - groundNodePos[i].x,
                                   groundNodePos[j].y - groundNodePos[i].y };
@@ -70,7 +70,7 @@ void Taba2sDtnApp::CalculateNodeScore() {
         }
     }
 
-    for (int i = 0; i < config.nGrounds; i++) {
+    for (uint32_t i = 0; i < config.nGrounds; i++) {
         point2D relative = { groundNodePos[i].x - currentPos.x,
                              groundNodePos[i].y - currentPos.y };
         double dist = relative.length();

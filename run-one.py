@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "TABA2S", # algorithm name
+    "name": "PIGEON", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
@@ -18,7 +18,11 @@ params = {
     "ferrySpeed": 10,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,
-    "bundleGenRate": 10.0, # packets/sec
+    "minGenRate": 5.0, # sec/packet
+    "maxGenRate": 25.0, # sec
+    "genSrcScheduler": "RANDOM_RANGE",
+    "genDstScheduler": "PARETO_7030",
+    "genParetoMatch": False,
     "bundleTTL": 600000000, # microsec
     "ferryComm": True, # enable communication between ferry
 }

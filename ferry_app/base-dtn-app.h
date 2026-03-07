@@ -20,6 +20,7 @@
 #include "../ferry_helper/cluster-helper.h"
 #include "../ferry_helper/packet-helper.h"
 #include "../ferry_helper/viz-helper.h"
+#include "../ferry_helper/bundle-gen-helper.h"
 
 #include <vector>
 #include <algorithm>
@@ -201,6 +202,7 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     else {
         m_bundleGenRate = rate;
     }
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " - genrate: " << m_bundleGenRate << " bundle/s");
     nodeGenRate[m_myIp.Get()] = m_bundleGenRate;
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + bundleGenRand->GetValue(0.0, averageBundleTime);
@@ -470,6 +472,7 @@ Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
         return a.creationTime > b.creationTime;
     }); // newest bundle first
 
+
     if (m_groupId != nodeGroup[neighborIp.Get()]) {
         // send bundle that belongs to ground node with ferry group id
         for (auto& bundle : m_buffer) {
@@ -477,13 +480,17 @@ Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
                 return &bundle;
             }
         }
+
         return nullptr; // not in the same group
     }
+
     for (auto& bundle : m_buffer) {
         if (bundle.flag_waitingAck == false) {
             return &bundle;
         }
+
     }
+
     return nullptr; // no bundle to send
 }
 
@@ -564,21 +571,17 @@ void BaseDtnApp::GenerateBundle() {
     b.source = m_myIp;
     b.creationTime = Simulator::Now().GetMicroSeconds();
 
-    Ipv4Address dest = m_myIp;
-    while (dest == m_myIp) { // so that destIP not equal my ip
-        dest = groundNodeIps[m_rand->GetInteger(0, groundNodeIps.size() - 1)];
-    }
-
-    b.destination = dest;
+    uint32_t dest = BundleGenerationHelper::ChoseBundleDestination(m_myIp.Get());
+    b.destination = Ipv4Address(dest);
 
     m_buffer.push_back(b);
     Report::bundleCount++;
-    Report::nodeBundleCount[rawNodeId(m_myIp.Get())][rawNodeId(dest.Get())]++;
+    Report::nodeBundleCount[rawNodeId(m_myIp.Get())][rawNodeId(dest)]++;
 
     RemoveOldBundle();
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 
-    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << nodeId[dest.Get()]);
+    NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": CREATED Bundle " << b.id << " to " << nodeId[dest]);
 
     // generate based on poisson distribution
     double jitter = bundleGenRand->GetValue(0.0, 1.0);

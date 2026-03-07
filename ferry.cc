@@ -207,9 +207,8 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Application
     // ==========================================================
+    BundleGenerationHelper::Init();
     uint32_t groupCount = GetAlgoGroupCount();
-
-
     auto clusters = Clustering::KMeans(groundNodePos, groupCount);
 
     for (uint32_t group = 0; group < groupCount; group++) {
@@ -230,8 +229,8 @@ int main(int argc, char* argv[]) {
             app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
             app->SetStartTime(Seconds(1.0));
             app->SetStopTime(Seconds(config.simTime));
-            app->EnableBundleGeneration(config.bundleGenRate);
             app->SetGroup(group);
+            app->EnableBundleGeneration(groundGenRate[n], true);
         }
     }
 

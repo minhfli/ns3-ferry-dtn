@@ -28,14 +28,20 @@ Ptr<UniformRandomVariable> bundleGenRand;
 std::vector<Ipv4Address> groundNodeIps;
 // array of node position !!! THIS IS NOT A MAP
 std::vector<point2D> groundNodePos;
+// array of receive chances of ground node
+std::vector<double> groundReceiveChances;
+// array of bundle generation rate of ground node (sec/bundle)
+std::vector<double> groundGenRate;
+
 // mapping from IP to type
 std::unordered_map<uint32_t, uint8_t> nodeType;
 // mapping from IP to group
 std::unordered_map<uint32_t, uint8_t> nodeGroup;
 // mapping from IP to node Id (g0, g1, ...)
 std::unordered_map<uint32_t, std::string> nodeId;
-// mapping from IP bundle generation rate, only tabara algorithm use this
+// mapping from IP bundle generation rate, (bundle/sec) only tabara algorithm use this
 std::unordered_map<uint32_t, double> nodeGenRate;
+
 
 // get node id without prefix
 uint32_t rawNodeId(uint32_t ip) {
@@ -45,5 +51,10 @@ uint32_t rawNodeId(uint32_t ip) {
 point2D nodePos(uint32_t ip) {
     return groundNodePos[rawNodeId(ip)];
 }
+
+double nodeReceiveChance(uint32_t ip) {
+    return groundReceiveChances[rawNodeId(ip)];
+}
+
 
 #endif

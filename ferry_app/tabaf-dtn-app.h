@@ -88,7 +88,7 @@ void TabafDtnApp::CalculateNodeScore() {
              return a.second < b.second;
     })->second;
 
-    for (int i = 0; i < config.nGrounds; i++) {
+    for (uint32_t i = 0; i < config.nGrounds; i++) {
         Vector3D currentPos = m_mobility->GetPosition();
         point2D relative = { groundNodePos[i].x - currentPos.x,
                              groundNodePos[i].y - currentPos.y };
@@ -129,7 +129,7 @@ void TabafDtnApp::ChooseNextServingNode() {
         double maxScore = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
 
         std::vector<uint32_t> validNodes;
-        for (int i = 0; i < m_nodeScore.size(); i++) {
+        for (uint32_t i = 0; i < m_nodeScore.size(); i++) {
             if (m_nodeScore[i] >= maxScore) {
                 validNodes.push_back(groundNodeIps[i].Get());
             }
@@ -149,7 +149,7 @@ void TabafDtnApp::ChooseNextServingNode() {
 
         double randvalue = m_rand->GetValue(0.0, totalScore);
         double currentScore = 0.0;
-        for (int i = 0; i < m_nodeScore.size(); i++) {
+        for (uint32_t i = 0; i < m_nodeScore.size(); i++) {
             currentScore += m_nodeScore[i];
             if (currentScore >= randvalue) {
                 m_nextServingNode = groundNodeIps[i].Get();

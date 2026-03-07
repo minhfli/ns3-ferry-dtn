@@ -17,6 +17,14 @@ constexpr uint8_t PIGEON_RETURN_CLOSET = 1;
 const std::string DETERMINISTIC = "DETERMINISTIC";
 const std::string PROBABILISTIC = "PROBABILISTIC";
 
+const std::string PURE_RANDOM = "PURE_RANDOM";
+const std::string RANDOM_RANGE = "RANDOM_RANGE";
+const std::string PARETO_9010 = "PARETO_9010";
+const std::string PARETO_8020 = "PARETO_8020";
+const std::string PARETO_7030 = "PARETO_7030";
+const std::string PARETO_6040 = "PARETO_6040";
+const std::set<std::string> PARETO_VALUES = { PARETO_9010,PARETO_8020, PARETO_7030, PARETO_6040 };
+
 struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
@@ -52,7 +60,14 @@ struct Config {
     uint32_t groundBufferSize = 100; // bundles, ground node will only hold bundle that it created
     uint32_t ferryBufferSize = 20;  // bundles
 
-    double bundleGenRate = 5.0; // 1 bundle every ... seconds
+    std::string bundleGenSourceScheduler = RANDOM_RANGE;
+    std::string bundleGenDestinationSheduler = PARETO_7030;
+    bool bundleGenParetoMatch = false;
+
+    // double bundleGenRate = 5.0; // 1 bundle every ... seconds
+    double maxBaseBundleGenRate = 30.0;
+    double minBaseBundleGenRate = 30.0;
+    // std::string
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
     double minExpectedArrivalDifference = 5; // (seconds), min expected arrival difference (Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
@@ -109,7 +124,13 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("ferrySpeed", "Ferry speed", config.ferrySpeed);
     cmd.AddValue("groundBufferSize", "Ground buffer size", config.groundBufferSize);
     cmd.AddValue("ferryBufferSize", "Ferry buffer size", config.ferryBufferSize);
-    cmd.AddValue("bundleGenRate", "Bundle generation rate", config.bundleGenRate);
+    // cmd.AddValue("bundleGenRate", "Bundle generation rate", config.bundleGenRate);
+    cmd.AddValue("minGenRate", "Min bundle generation rate", config.minBaseBundleGenRate);
+    cmd.AddValue("maxGenRate", "Max bundle generation rate", config.maxBaseBundleGenRate);
+    cmd.AddValue("genSrcScheduler", "Bundle generation source scheduler", config.bundleGenSourceScheduler);
+    cmd.AddValue("genDstScheduler", "Bundle generation destination scheduler", config.bundleGenDestinationSheduler);
+    cmd.AddValue("genParetoMatch", "Bundle generation pareto match", config.bundleGenParetoMatch);
+
     cmd.AddValue("bundleTTL", "Bundle TTL", config.bundleTTL);
     cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);

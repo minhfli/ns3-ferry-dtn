@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260306_3am"
+BATCH = "20260308_3am"
 BATCH_ID = "conf431" #! TEMPORARY for rerun
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -31,23 +31,27 @@ base_params = {
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
-    "ferrySpeed": 10,
+    "ferrySpeed": 12,
+    "minGenRate": 5.0, # sec/packet
+    "maxGenRate": 25.0, # sec
+    "genSrcScheduler": "RANDOM_RANGE",
+    "genDstScheduler": "PARETO_7030",
+    "genParetoMatch": False,
 }
 # ============================================================
 # Parameter sweep grid
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "TABADLA"],
+    "name": [ "SIRA", "TABAF", "TABARA", "SR_PIGEON"],
 
     "nGrounds": [30],
-    "nFerrys": [1, 3, 5, 7, 10, 12, 15],
+    "nFerrys": [7],
 
     "groundBufferSize": [1000],
-    "ferryBufferSize": [500],
+    "ferryBufferSize": [100, 200, 500, 700, 1000, 1500],
 
-    "bundleGenRate": [15.0],
-    "bundleTTL": [600000000, 900000000],
+    "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
 
     "ferryComm": [False, True],
 }

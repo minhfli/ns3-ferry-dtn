@@ -105,7 +105,11 @@ namespace Report {
         file << "Algorithm: " << config.ALGORITHM_NAME << std::endl;
         file << "Simulation Time (s): " << config.simTime << std::endl;
         file << "Area Width (m): " << config.areaWidth << std::endl;
-        file << "Bundle Generation Rate (s/bundle): " << config.bundleGenRate << std::endl;
+        file << "Min Base Bundle Generation Rate (s/bundle): " << config.minBaseBundleGenRate << std::endl;
+        file << "Max Base Bundle Generation Rate (s/bundle): " << config.maxBaseBundleGenRate << std::endl;
+        file << "Bundle Generation Source Scheduler: " << config.bundleGenSourceScheduler << std::endl;
+        file << "Bundle Generation Destination Scheduler: " << config.bundleGenDestinationSheduler << std::endl;
+        file << "Bundle Generation ParetoMatch: " << config.bundleGenParetoMatch << std::endl;
         file << "Bundle TTL(s): " << config.bundleTTL / 1000000 << std::endl;
         file << "Comm Range (m): " << config.commRange << std::endl;
         file << "Ferry Height (m): " << config.ferryHeight << std::endl;

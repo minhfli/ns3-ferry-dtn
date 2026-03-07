@@ -165,10 +165,12 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
             m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
             currentTime + time,
             config.ferrySpeed,
-            &cost
+            &cost,
+            50,
+            500
         );
 
-        // cannot sastify all deadlines or buffer full -> switch to pigeon mode
+// cannot sastify all deadlines or buffer full -> switch to pigeon mode
         if (cost < m_buffer.size() || m_buffer.size() >= m_maxBufferSize) {
             uint32_t newCost;
 
@@ -178,7 +180,8 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
                 { currentPos.x, currentPos.y }, // starting pos
                 currentTime,
                 config.ferrySpeed,
-                &newCost
+                &newCost,
+                50, 500
             );
 
             if (newCost < cost || m_buffer.size() >= m_maxBufferSize) {
