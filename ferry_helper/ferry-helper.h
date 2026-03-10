@@ -165,4 +165,15 @@ uint64_t CalExpectedArrival(const uint32_t node, const std::vector<uint32_t> nod
     }
     return 0;
 }
+
+double CalRouteDistance(const std::vector<point2D>& points, const std::vector<uint32_t>& route, int startIndex, int endIndex, int direction) {
+    double distance = 0;
+    while (startIndex != endIndex) {
+        // NS_LOG_UNCOND(startIndex);
+        int nextIndex = (startIndex + direction + route.size()) % route.size();
+        distance += dist(points[route[startIndex]], points[route[nextIndex]]);
+        startIndex = nextIndex;
+    }
+    return distance;
+}
 #endif // FERRY_HELPER_H

@@ -9,6 +9,8 @@
 #include <cmath>
 #include <unordered_map>
 
+// algo name: Single Route Delay Triggered Shortcut
+
 class SingleRoutePigeonDtnApp : public BaseDtnApp {
     public:
     SingleRoutePigeonDtnApp() : BaseDtnApp() {};
@@ -24,8 +26,6 @@ class SingleRoutePigeonDtnApp : public BaseDtnApp {
 
     protected:
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
-
-    virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp);
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
 
@@ -180,71 +180,6 @@ std::vector<uint32_t> SingleRoutePigeonDtnApp::GetServingNodeRoute() {
 
 #pragma endregion
 #pragma region Bundle
-
-Bundle* SingleRoutePigeonDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
-    RemoveExpiredBundles();
-    if (m_buffer.empty()) return nullptr;
-    auto neighbor = m_neighbor[neighborIp.Get()];
-
-    if (m_mode == MODE_FERRY) {
-        if (neighbor.operationMode == MODE_FERRY) { //* FERRY to FERRY: Send bundle that can travel faster
-            // filter node that neighbor will go to it faster
-            // NS_LOG_UNCOND("check1");
-            std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
-            // NS_LOG_UNCOND("check2");
-
-            for (Bundle& bundle : m_buffer) {
-                if (bundle.flag_waitingAck) continue;
-                if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
-                    return &bundle;
-                }
-            }
-            // NS_LOG_UNCOND("check3");
-
-        }
-        if (neighbor.operationMode == MODE_PIGEON) { //* FERRY to PIGEON: Send bundle that must meet deadline
-            std::map<uint32_t, double> neighborExpectedArrival;
-            for (uint32_t i = 0; i < neighbor.route.size(); i++) {
-                neighborExpectedArrival[neighbor.route[i]] = (double)neighbor.expectedArrival[i] / 1000000.0;
-            }
-            for (Bundle& bundle : m_buffer) {
-                if (bundle.flag_waitingAck) continue;
-                if (neighborExpectedArrival.find(bundle.destination.Get()) == neighborExpectedArrival.end())
-                    continue;
-                double expect = neighborExpectedArrival[bundle.destination.Get()];
-                double bundleExpiration = bundle.creationTime + config.bundleTTL;
-                bundleExpiration /= 1000000.0;
-                if (bundleExpiration + config.minExpectedArrivalDifference < expect) {
-                    return &bundle;
-                }
-            }
-        }
-    }
-    if (m_mode == MODE_PIGEON) {
-        if (neighbor.operationMode == MODE_FERRY) { //* PIGEON to FERRY: Send nothing
-            return nullptr;
-        }
-        if (neighbor.operationMode == MODE_PIGEON) { //* PIGEON to PIGEON: Send bundle that can travel faster, only with bundle that cannot meet deadline
-            // filter node that neighbor will go to it faster
-            std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
-
-            for (Bundle& bundle : m_buffer) {
-                if (bundle.flag_waitingAck) continue;
-                double expect = (double)CalExpectedArrival(bundle.destination.Get(), GetServingNodeRoute(), GetServingExpectedArrival());
-                double bundleExpiration = bundle.creationTime + config.bundleTTL;
-                bundleExpiration /= 1000000.0;
-                if (bundleExpiration + config.minExpectedArrivalDifference < expect) {
-                    continue; // only send bundle that cannot meet deadlines
-                }
-                if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
-                    return &bundle;
-                }
-
-            }
-        }
-    }
-    return nullptr;
-}
 
 #pragma endregion
 #endif 

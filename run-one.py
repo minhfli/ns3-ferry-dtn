@@ -5,17 +5,17 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "PIGEON", # algorithm name
+    "name": "RPDLAS", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
-    "simTime": 1000,
+    "simTime": 7500,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 30,
-    "nFerrys": 15,
-    "ferrySpeed": 10,
+    "nFerrys": 5,
+    "ferrySpeed": 12,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,
     "minGenRate": 5.0, # sec/packet

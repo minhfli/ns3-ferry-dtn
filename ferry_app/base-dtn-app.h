@@ -21,6 +21,7 @@
 #include "../ferry_helper/packet-helper.h"
 #include "../ferry_helper/viz-helper.h"
 #include "../ferry_helper/bundle-gen-helper.h"
+#include "../ferry_helper/data-structure-helper.h"
 
 #include <vector>
 #include <algorithm>
@@ -510,28 +511,16 @@ Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
     RemoveExpiredBundles();
     if (m_buffer.empty()) return nullptr;
 
-    // filter node that neighbor will go to it faster
-    std::vector<uint32_t> nodeFilter; // first: nodeip, second: count
     auto neighbor = m_neighbor[neighborIp.Get()];
-
-    for (uint32_t i = 0; i < neighbor.route.size(); i++) {
-        uint32_t node = neighbor.route[i];
-        double expect2 = (double)neighbor.expectedArrival[i] / 1000000.0;
-        double expect1 = (double)CalExpectedArrival(node, GetServingNodeRoute(), GetServingExpectedArrival()) / 1000000.0;
-        if (expect1 == 0 || expect1 - expect2 > config.minExpectedArrivalDifference)
-            // neighbor go to node that not in current route or go faster
-            nodeFilter.push_back(node);
-    }
+    // filter node that neighbor will go to it faster
+    std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
 
     for (Bundle& bundle : m_buffer) {
         if (bundle.flag_waitingAck) continue;
-        for (uint32_t node : nodeFilter) {
-            if (bundle.destination.Get() == node) {
-                return &bundle;
-            }
+        if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
+            return &bundle;
         }
     }
-
     return nullptr;
 }
 

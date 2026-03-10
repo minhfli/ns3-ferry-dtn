@@ -14,6 +14,9 @@ constexpr uint8_t SELECT_MODE_PROBALISTC = 2;
 constexpr uint8_t PIGEON_RETURN_CONTINUE = 0;
 constexpr uint8_t PIGEON_RETURN_CLOSET = 1;
 
+const std::string ENABLED = "ENABLED";
+const std::string DISABLED = "DISABLED";
+
 const std::string DETERMINISTIC = "DETERMINISTIC";
 const std::string PROBABILISTIC = "PROBABILISTIC";
 
@@ -23,7 +26,7 @@ const std::string PARETO_9010 = "PARETO_9010";
 const std::string PARETO_8020 = "PARETO_8020";
 const std::string PARETO_7030 = "PARETO_7030";
 const std::string PARETO_6040 = "PARETO_6040";
-const std::set<std::string> PARETO_VALUES = { PARETO_9010,PARETO_8020, PARETO_7030, PARETO_6040 };
+const std::set<std::string> PARETO_VALUES = { PARETO_9010, PARETO_8020, PARETO_7030, PARETO_6040 };
 
 struct Config {
     int randSeed = 1337;
@@ -83,6 +86,9 @@ struct Config {
 
     uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
 
+    bool SR_PIGEON_V2_addlvt = false; // add time since last visit value to node score calculation
+    bool SR_PIGEON_V2_vtModePredict = true; //   
+
     bool TABADLA_addBundleValue = false;
     uint32_t TABADLA_topK = 10;
 
@@ -139,6 +145,8 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);
     cmd.AddValue("TABADLA_addBundleValue", "TABADLA, add bundle value", config.TABADLA_addBundleValue);
     cmd.AddValue("waypointSelectMode", "Waypoint selection mode", config.waypointSelectMode);
+    cmd.AddValue("SR_PIGEON_V2_addlvt", "SR_PIGEON_V2, add lvt", config.SR_PIGEON_V2_addlvt);
+
 
     cmd.Parse(argc, argv);
     return;

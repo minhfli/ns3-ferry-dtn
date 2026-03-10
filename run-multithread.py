@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260308_3am"
+BATCH = "20260308_2am"
 BATCH_ID = "conf431" #! TEMPORARY for rerun
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -43,15 +43,20 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "TABAF", "TABARA", "SR_PIGEON"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON"],
+    "name": [ "SR_PIGEON_V2"],
 
     "nGrounds": [30],
-    "nFerrys": [7],
+    # "nFerrys": [ 7, 10],
+    # "nFerrys": [ 1, 3, 5, 7, 10, 12, 15],
+    "nFerrys": [ 1, 3, 5, 7, 10, 12, 15],
 
     "groundBufferSize": [1000],
-    "ferryBufferSize": [100, 200, 500, 700, 1000, 1500],
+    # "ferryBufferSize": [50, 100, 150, 200, 500],
+    "ferryBufferSize": [500],
 
-    "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
+    # "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
+    "bundleTTL": [ 450000000, 600000000,900000000], 
 
     "ferryComm": [False, True],
 }
@@ -77,6 +82,22 @@ algo_variants= {
         "DWS": {
             "waypointSelectMode": "DETERMINISTIC",
         },
+    },
+    "SR_PIGEON_V2": {
+        # "default": {
+        #     "waypointSelectMode": "PROBABILISTIC",
+        # },  
+        # "DWS": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        # },
+        # "PWS_addlvt": {
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "SR_PIGEON_V2_addlvt": True
+        # },
+        "DWS_addlvt": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "SR_PIGEON_V2_addlvt": True
+        }
     },
     "TABADLA": {
         # "default": { # previous run show that this is not good
@@ -220,7 +241,7 @@ if __name__ == "__main__":
                 algo_variants[algo] = {"default": {}}
             for variant_name, variant_params in algo_variants.get(algo, {}).items():
                 params.update(variant_params)
-                if variant_name is "default":
+                if variant_name == "default":
                     variant_name = ""
                 else:
                     variant_name = f"variant_{variant_name}_"
@@ -232,7 +253,11 @@ if __name__ == "__main__":
                     f"_GBS{params['groundBufferSize']}"
                     f"_FBS{params['ferryBufferSize']}"
                     f"_T{params['bundleTTL'] / 1000000}"
-                    f"_R{params['bundleGenRate']}"
+                    f"_minR{params['minGenRate']}"
+                    f"_maxR{params['maxGenRate']}"
+                    f"_Src{params['genSrcScheduler']}"
+                    f"_Dst{params['genDstScheduler']}"
+                    f"_P{int(params['genParetoMatch'])}"
                     f"_C{int(params['ferryComm'])}"
                     f"_seed{seed_id}"
                 )
