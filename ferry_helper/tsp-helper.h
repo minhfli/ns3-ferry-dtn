@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <numeric>
 #include <limits>
+#include <set>
 
 #include "datatypes.h"
 #include "global.h"
@@ -82,7 +83,7 @@ inline void SwapMutation(std::vector<uint32_t>& order,
 /* ================================
    MAIN GA
 ================================ */
-std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
     NS_LOG_UNCOND("TSP Classic GA");
     uint32_t POP_SIZE = population_size; // population size
     uint32_t MAX_GEN = max_generation; // max number of generation
@@ -97,10 +98,16 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const uin
     std::mt19937 gen(1337); //! MAGIC NUMBER - Fixed seed
 
     /* Initialize population */
+    std::vector<uint32_t> included;
+    for (uint32_t i = 0; i < n; i++) {
+        if (excludeIdx.find(i) == excludeIdx.end()) {
+            included.push_back(i);
+        }
+    }
+
     std::vector<TSPSolution> population(POP_SIZE);
     for (TSPSolution& sol : population) {
-        sol.order.resize(n);
-        std::iota(sol.order.begin(), sol.order.end(), 0);
+        sol.order = included;
         std::shuffle(sol.order.begin(), sol.order.end(), gen);
         sol.cost = ComputeCost(sol.order, points);
     }
@@ -157,6 +164,11 @@ std::vector<uint32_t> TSPTwoOptOptimize(const std::vector<point2D>& points, cons
     return order;
 }
 
+std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}) {
+    std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx);
+    order = TSPTwoOptOptimize(points, order);
+    return order;
+}
 #pragma endregion
 
 #pragma region "DEADLINE BASED TSP"

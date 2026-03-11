@@ -94,6 +94,7 @@ class BaseDtnApp : public Application {
 
     std::vector<uint64_t> GetServingExpectedArrival();
     std::map<uint32_t, uint32_t> GetBundleCount() const;
+    // Lấy danh sách deadline của từng node index
     std::vector<std::vector<double>> GetDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
@@ -732,7 +733,6 @@ void BaseDtnApp::OnGroundReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pac
     m_neighbor[sourceIp.Get()].expectedArrival = ferryRouteHeader.GetExpectedArrival();
     m_neighbor[sourceIp.Get()].group = ferryRouteHeader.GetGroup();
     m_neighbor[sourceIp.Get()].operationMode = ferryRouteHeader.GetMode();
-
 
     BufferStateHeader bufferStateHeader;
     packet->RemoveHeader(bufferStateHeader);

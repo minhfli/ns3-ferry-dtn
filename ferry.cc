@@ -91,6 +91,7 @@ uint32_t GetAlgoGroupCount() {
 }
 
 void CallGlobalFerryAppSetup() {
+    NS_LOG_UNCOND("Calling global ferry setup for: " << config.ALGORITHM_NAME);
     if (config.ALGORITHM_NAME == "RPDLAS") {
         RPDLAS::FerrySetup();
         return;

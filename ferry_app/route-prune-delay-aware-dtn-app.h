@@ -15,8 +15,12 @@
 namespace RPDLAS {
 
     std::vector<std::set<uint32_t>> excludeSets;
+    uint32_t currentFerryIdx = 0;
+
 
     void FerrySetup() {
+        excludeSets.resize(config.nFerrys);
+
         uint32_t pruneAmount = (config.nFerrys - 1) / 2;
         if (pruneAmount == 0) return;
 
@@ -61,12 +65,16 @@ namespace RPDLAS {
             for (auto i : exclude) {
                 prio[i]--;
             }
-            excludeSets.push_back(exclude);
+            excludeSets[f] = exclude;
 
         }
+
         return;
     }
-
+    std::set<uint32_t> AssginExcludeSet() {
+        currentFerryIdx++;
+        return excludeSets[currentFerryIdx - 1];
+    }
 };
 
 class RoutePrunningDeadlineAwareShortcutDtnApp : public BaseDtnApp {
@@ -88,20 +96,18 @@ class RoutePrunningDeadlineAwareShortcutDtnApp : public BaseDtnApp {
     // virtual void ReceivePacket(Ptr<Socket> socket);
 
     private:
-    uint32_t m_lastFerryIndex;
-    uint32_t m_nextFerryIndex;
-    uint32_t m_nextPigeonIndex;
-    std::vector<uint32_t> m_route;
+    uint32_t m_lastFerryIndex; // index in the m_ferryRoute
+    uint32_t m_nextFerryIndex; // index in the m_ferryRoute
 
-    std::set<uint32_t> m_excludeNodes; // TODO excluding node from the ferry route
+    std::set<uint32_t> m_excludeIdxs;
     std::vector<uint32_t> m_ferryRoute; // indexes of the ground node pos array
-    std::vector<uint32_t> m_pigeonRoute; // indexes of the ground node pos array
 
     bool m_reachedFirstNode = false;
 
     int m_direction;
 
     void ScheduleNextWaypoint();
+    void Reroute(uint32_t removeFerryIndex, uint32_t addNodeIp);
 };
 
 NS_OBJECT_ENSURE_REGISTERED(RoutePrunningDeadlineAwareShortcutDtnApp);
@@ -109,26 +115,43 @@ NS_OBJECT_ENSURE_REGISTERED(RoutePrunningDeadlineAwareShortcutDtnApp);
 #pragma region Mobility
 
 void RoutePrunningDeadlineAwareShortcutDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) { // ignore the input
-    if (!SIRA::created) {
-        SIRA::createRoute();
-    }
-
     m_mode = MODE_FERRY;
     m_direction = m_rand->GetInteger(0, 1);
     m_direction = 2 * m_direction - 1; // -1 or 1
-    m_ferryRoute = SIRA::route;
+    m_excludeIdxs = RPDLAS::AssginExcludeSet();
+    m_ferryRoute = TSPHelper(groundNodePos, m_excludeIdxs);
 
     Vector3D currentPos = m_mobility->GetPosition();
 
-    m_nextFerryIndex = SIRA::GetClosestIndex({ currentPos.x, currentPos.y }) - m_direction;
-    m_reachedFirstNode = false;
+    m_nextFerryIndex = 0;
+    double currentDistance = -1;
+    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+        point2D pos = groundNodePos[m_ferryRoute[i]];
+        point2D relative = { pos.x - currentPos.x,
+                             pos.y - currentPos.y };
+        double distance = relative.length();
 
+        if (currentDistance < 0 - 1 || distance < currentDistance) {
+            currentDistance = distance;
+            m_nextFerryIndex = i;
+        }
+    }
+    m_reachedFirstNode = false;
     Simulator::Schedule(Seconds(0), &RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint, this);
 }
 
 void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
     RemoveExpiredBundles();
     auto deadlines = GetDeadlines();
+    if (m_reachedFirstNode) {
+        uint32_t currentNodeIdx = m_ferryRoute[m_nextFerryIndex];
+        deadlines[currentNodeIdx].clear(); // remove so that deadline route wont include current node
+    }
+    if (config.RPDLAS_operationMode == RPDLAS_NO_REROUTE_COLLECT_INROUTE) {
+        for (auto excludeIdx : m_excludeIdxs) {
+            deadlines[excludeIdx].clear(); // remove all deadlines outside of current node route
+        }
+    }
 
     if (!config.SR_PIGEON_V2_vtModePredict) {
         if (m_reachedFirstNode) {
@@ -147,6 +170,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
     double currentTime = Simulator::Now().GetSeconds();
     Vector3D currentPos = m_mobility->GetPosition();
 
+    uint32_t currentFerryIndex = m_nextFerryIndex;
     m_nextFerryIndex = (m_nextFerryIndex + m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
 
     point2D nextFerryPos = groundNodePos[m_ferryRoute[m_nextFerryIndex]];
@@ -183,25 +207,6 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                 double value1 = (double)(dlval1 + 1) / dist1;
                 double value2 = (double)(dlval2 + 1) / dist2;
 
-                if (config.SR_PIGEON_V2_addlvt) {
-                    double maxdl = std::max(dlval1, dlval2);
-                    double timeValue1 = 1;
-                    if (m_visitTime.find(nextFerryNode) != m_visitTime.end()) {
-                        uint64_t time = Simulator::Now().GetMicroSeconds() - m_visitTime[nextFerryNode];
-                        double timeFromLastVisit = (double)time / 1000000.0;
-                        timeValue1 = timeFromLastVisit / Simulator::Now().GetSeconds();
-                    }
-                    double timeValue2 = 1;
-                    if (m_visitTime.find(firstPigeonNode) != m_visitTime.end()) {
-                        uint64_t time = Simulator::Now().GetMicroSeconds() - m_visitTime[firstPigeonNode];
-                        double timeFromLastVisit = (double)time / 1000000.0;
-                        timeValue2 = timeFromLastVisit / Simulator::Now().GetSeconds();
-                    }
-                    value1 = (double)(dlval1 / maxdl + timeValue1) / dist1;
-                    value2 = (double)(dlval2 / maxdl + timeValue2) / dist2;
-                }
-
-
                 if (config.waypointSelectMode == DETERMINISTIC) {
                     if (value1 >= value2) {
                         nextWaypoint = nextFerryPos;
@@ -209,12 +214,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                     else {
                         nextWaypoint = groundNodePos[route2[0]];
                         continueFerry = false;
-                        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
-                            if (m_ferryRoute[i] == route2[0]) {
-                                m_nextFerryIndex = i;
-                                break;
-                            }
-                        }
+                        m_nextFerryIndex = route2[0]; // temp, m_nextFerryIndex set to global node id, reset in reroute()
                     }
                 }
                 else if (config.waypointSelectMode == PROBABILISTIC) {
@@ -225,12 +225,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                     else {
                         nextWaypoint = groundNodePos[route2[0]];
                         continueFerry = false;
-                        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
-                            if (m_ferryRoute[i] == route2[0]) {
-                                m_nextFerryIndex = i;
-                                break;
-                            }
-                        }
+                        m_nextFerryIndex = route2[0]; // temp, m_nextFerryIndex set to global node index, reset in reroute()
                     }
                 }
                 else {
@@ -245,11 +240,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
         m_lastFerryIndex = m_nextFerryIndex;
     }
     else {
-        double distance1 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, m_direction);
-        double distance2 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, -m_direction);
-        if (distance1 > distance2) {
-            m_direction = -m_direction;
-        }
+        Reroute(currentFerryIndex, m_nextFerryIndex);
     }
     point2D relative = { nextWaypoint.x - currentPos.x,
                         nextWaypoint.y - currentPos.y };
@@ -286,6 +277,77 @@ std::vector<uint32_t> RoutePrunningDeadlineAwareShortcutDtnApp::GetServingNodeRo
     // return { groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get() };
 }
 
+void RoutePrunningDeadlineAwareShortcutDtnApp::Reroute(uint32_t removeFerryIndex, uint32_t addNodeIndex) {
+    if (m_excludeIdxs.find(addNodeIndex) == m_excludeIdxs.end()) {
+        // new node is still in current route
+        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+            if (m_ferryRoute[i] == addNodeIndex) {
+                m_nextFerryIndex = i;
+                break;
+            }
+        }
+
+        double distance1 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, m_direction);
+        double distance2 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, -m_direction);
+        if (distance1 > distance2) {
+            m_direction = -m_direction;
+        }
+        return;
+    }
+
+    // remove old route
+    if (removeFerryIndex == m_lastFerryIndex) {
+        m_lastFerryIndex = (m_lastFerryIndex + m_ferryRoute.size() - m_direction) % m_ferryRoute.size();
+    }
+    uint32_t lastFerryNodeIndex = m_ferryRoute[m_lastFerryIndex];
+
+    m_excludeIdxs.erase(addNodeIndex);
+    m_excludeIdxs.insert(m_ferryRoute[removeFerryIndex]);
+    m_ferryRoute.erase(m_ferryRoute.begin() + removeFerryIndex);
+
+    // calculate new route
+    if (config.RPDLAS_operationMode == RPDLAS_REROUTE_INSERT) {
+        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+            if (m_ferryRoute[i] == addNodeIndex) {
+                NS_ASSERT(false);
+            }
+        }
+        uint32_t insertIndex = 0;
+        double insertGain = -1;
+        for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+            point2D pos1 = groundNodePos[m_ferryRoute[i]];
+            point2D pos2 = groundNodePos[m_ferryRoute[(i + 1) % m_ferryRoute.size()]];
+            point2D newpos = groundNodePos[addNodeIndex];
+            double dist1 = dist(pos1, newpos);
+            double dist2 = dist(pos2, newpos);
+            double dist12 = dist(pos1, pos2);
+            double gain = dist1 + dist2 - dist12;
+            if (insertGain < 0 || gain < insertGain) {
+                insertGain = gain;
+                insertIndex = i;
+            }
+        }
+        m_ferryRoute.insert(m_ferryRoute.begin() + insertIndex + 1, addNodeIndex);
+    }
+    if (config.RPDLAS_operationMode == RPDLAS_REROUTE_OPTIMIZED) {
+        m_ferryRoute = TSPHelper(groundNodePos, m_excludeIdxs);
+    }
+
+    // check re-direction
+    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+        if (m_ferryRoute[i] == lastFerryNodeIndex) {
+            m_lastFerryIndex = i;
+        }
+        if (m_ferryRoute[i] == addNodeIndex) {
+            m_nextFerryIndex = i;
+        }
+    }
+    double distance1 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, m_direction);
+    double distance2 = CalRouteDistance(groundNodePos, m_ferryRoute, m_lastFerryIndex, m_nextFerryIndex, -m_direction);
+    if (distance1 > distance2) {
+        m_direction = -m_direction;
+    }
+}
 #pragma endregion
 #pragma region Bundle
 
@@ -297,11 +359,24 @@ Bundle* RoutePrunningDeadlineAwareShortcutDtnApp::GroundSelectBundleToFerry(Ipv4
         return a.creationTime > b.creationTime;
     }); // newest bundle first
 
-    for (auto& bundle : m_buffer) {
-        if (bundle.flag_waitingAck == false) {
-            return &bundle;
+    if (config.RPDLAS_operationMode == RPDLAS_NO_REROUTE_COLLECT_INROUTE) {
+        auto neighbor = m_neighbor[neighborIp.Get()];
+        for (auto& bundle : m_buffer) {
+            if (bundle.flag_waitingAck == false) {
+                for (auto nodeId : neighbor.route) {
+                    if (nodeId == bundle.destination.Get()) {
+                        return &bundle;
+                    }
+                }
+            }
         }
-
+    }
+    else {
+        for (auto& bundle : m_buffer) {
+            if (bundle.flag_waitingAck == false) {
+                return &bundle;
+            }
+        }
     }
 
     return nullptr; // no bundle to send

@@ -8,13 +8,17 @@ params = {
     "name": "RPDLAS", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug", # run name for log file
+    "run": "debug0", # run name for log file
     "simTime": 7500,
+    #* some algorithm specific config
+    "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+    "waypointSelectMode" :"DETERMINISTIC",
+    #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 30,
-    "nFerrys": 5,
+    "nFerrys": 2,
     "ferrySpeed": 12,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,

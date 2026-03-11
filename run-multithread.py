@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260308_2am"
-BATCH_ID = "conf431" #! TEMPORARY for rerun
+BATCH = "202603011_5pm"
+BATCH_ID = "conf4315p64" #! TEMPORARY for rerun
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
 
@@ -32,10 +32,10 @@ base_params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "ferrySpeed": 12,
-    "minGenRate": 5.0, # sec/packet
-    "maxGenRate": 25.0, # sec
+    "minGenRate": 10.0, # sec/packet
+    "maxGenRate": 20.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
-    "genDstScheduler": "PARETO_7030",
+    "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
 }
 # ============================================================
@@ -43,8 +43,8 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON"],
-    "name": [ "SR_PIGEON_V2"],
+    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON_V2", "RPDLAS", "SR_PIGEON"],
+    # "name": [ "RPDLAS"],
 
     "nGrounds": [30],
     # "nFerrys": [ 7, 10],
@@ -84,20 +84,12 @@ algo_variants= {
         },
     },
     "SR_PIGEON_V2": {
-        # "default": {
-        #     "waypointSelectMode": "PROBABILISTIC",
-        # },  
-        # "DWS": {
-        #     "waypointSelectMode": "DETERMINISTIC",
-        # },
-        # "PWS_addlvt": {
-        #     "waypointSelectMode": "PROBABILISTIC",
-        #     "SR_PIGEON_V2_addlvt": True
-        # },
-        "DWS_addlvt": {
+        "default": {
+            "waypointSelectMode": "PROBABILISTIC",
+        },  
+        "DWS": {
             "waypointSelectMode": "DETERMINISTIC",
-            "SR_PIGEON_V2_addlvt": True
-        }
+        },
     },
     "TABADLA": {
         # "default": { # previous run show that this is not good
@@ -113,6 +105,12 @@ algo_variants= {
             "TABADLA_addBundleValue": False
         },
     },
+    "RPDLAS": {
+        "default": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        },
+    }
 }
 
 N_SEEDS = 3
