@@ -5,20 +5,21 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "RPDLAS", # algorithm name
-    "vi": True,
+    "name": "SR_TABAF", # algorithm name
+    "vi": False,
     "batch": "default",
-    "run": "debug0", # run name for log file
+    "run": "debug2", # run name for log file
     "simTime": 7500,
     #* some algorithm specific config
     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
-    "waypointSelectMode" :"DETERMINISTIC",
+    "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
+    "waypointSelectMode" :"PROBABILISTIC",
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 30,
-    "nFerrys": 2,
+    "nFerrys": 5,
     "ferrySpeed": 12,
     "groundBufferSize": 50,
     "ferryBufferSize": 300,

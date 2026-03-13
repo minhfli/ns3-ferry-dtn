@@ -1,4 +1,5 @@
 from logging.config import valid_ident
+from re import M
 import subprocess
 import os
 import itertools
@@ -43,23 +44,26 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON_V2", "RPDLAS", "SR_PIGEON"],
-    # "name": [ "RPDLAS"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS"],
+    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS"],
+    # "name": [ "SR_TABAF"],
 
     "nGrounds": [30],
     # "nFerrys": [ 7, 10],
     # "nFerrys": [ 1, 3, 5, 7, 10, 12, 15],
-    "nFerrys": [ 1, 3, 5, 7, 10, 12, 15],
+    "nFerrys": [ 3, 5, 7, 10, 12, 15],
 
     "groundBufferSize": [1000],
     # "ferryBufferSize": [50, 100, 150, 200, 500],
     "ferryBufferSize": [500],
 
     # "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
-    "bundleTTL": [ 450000000, 600000000,900000000], 
+    "bundleTTL": [ 300000000, 450000000, 600000000, 900000000], 
 
     "ferryComm": [False, True],
 }
+
+FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
     "PIGEON": {
@@ -79,9 +83,9 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        "DWS": {
-            "waypointSelectMode": "DETERMINISTIC",
-        },
+        # "DWS": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        # },
     },
     "SR_PIGEON_V2": {
         "default": {
@@ -106,14 +110,84 @@ algo_variants= {
         },
     },
     "RPDLAS": {
-        "default": {
-            "waypointSelectMode": "DETERMINISTIC",
+        # "default": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_HALF",
+        # },
+        # "DWS_third":{
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_ONE_THIRD",
+        # },
+        # "PWS_half":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_HALF",
+        # },
+        "PWS_third":{
+            "waypointSelectMode": "PROBABILISTIC",
             "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+            "RPDLAS_pruneMode": "RPDLAS_PRUNE_ONE_THIRD",
         },
-    }
+        "PWS_one":{
+            "waypointSelectMode": "PROBABILISTIC",
+            "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+            "RPDLAS_pruneMode": "RPDLAS_PRUNE_ONE",
+        },
+        # "DWS_max":{
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
+        # },
+        # "PWS_max":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
+        # },
+        # "RI_PWS_half":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_INSERT",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_HALF",
+        # },
+        # "RO_PWS_half":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_OPTIMIZED",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_HALF",
+        # },
+        # "RI_PWS_max":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_INSERT",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
+        # },
+        # "RO_PWS_max":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_OPTIMIZED",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",        
+        # },
+        # "RI_PWS_cluster":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_INSERT",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_CLUSTER",
+        # },
+        # "RO_PWS_cluster":{
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "RPDLAS_operationMode": "RPDLAS_REROUTE_OPTIMIZED",
+        #     "RPDLAS_pruneMode": "RPDLAS_PRUNE_CLUSTER",        
+        # },
+    },
+    "SR_TABAF": {
+        "default": {
+            "waypointSelectMode": "PROBABILISTIC",
+        },
+        # "DWS": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        # },
+    },
+
 }
 
-N_SEEDS = 3
+N_SEEDS = 5
 MAX_WORKERS = 8
 
 # ============================================================
@@ -237,6 +311,9 @@ if __name__ == "__main__":
             
             if algo not in algo_variants:
                 algo_variants[algo] = {"default": {}}
+            if (algo in FC_only) and params["ferryComm"] == False:
+                total_config_count -= len(algo_variants[algo])
+                continue
             for variant_name, variant_params in algo_variants.get(algo, {}).items():
                 params.update(variant_params)
                 if variant_name == "default":
@@ -259,6 +336,7 @@ if __name__ == "__main__":
                     f"_C{int(params['ferryComm'])}"
                     f"_seed{seed_id}"
                 )
+
                 cmd = build_cmd(PROGRAM, params)
                 config_name = f"Config {config_id + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo} | Variant: {variant_name}"
                 tasks.append((cmd, config_name))

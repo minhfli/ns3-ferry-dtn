@@ -17,11 +17,35 @@ namespace RPDLAS {
     std::vector<std::set<uint32_t>> excludeSets;
     uint32_t currentFerryIdx = 0;
 
+    uint32_t pruneAmount = 0;
 
     void FerrySetup() {
         excludeSets.resize(config.nFerrys);
 
-        uint32_t pruneAmount = (config.nFerrys - 1) / 2;
+        if (config.RPDLAS_pruneMode == RPDLAS_PRUNE_HALF) {
+            pruneAmount = (config.nFerrys - 1) / 2;
+        }
+        else if (config.RPDLAS_pruneMode == RPDLAS_PRUNE_ONE_THIRD) {
+            if (config.nFerrys > 3)
+                pruneAmount = config.nFerrys / 3;
+        }
+        else if (config.RPDLAS_pruneMode == RPDLAS_PRUNE_MAXIMAL) {
+            if (config.nFerrys >= 3) {
+                double cmax = (double)(config.nFerrys - 1.0) / 2.0;
+                double kmax = (double)config.nGrounds / (double)config.nFerrys * cmax;
+                pruneAmount = (uint32_t)kmax - 1;
+            }
+        }
+        else if (config.RPDLAS_pruneMode == RPDLAS_PRUNE_CLUSTER) {
+            if (config.nFerrys >= 2) {
+                uint32_t clusterSize = config.nGrounds / config.nFerrys;
+                pruneAmount = config.nGrounds - 2 * clusterSize;
+            }
+        }
+        else if (config.RPDLAS_pruneMode == RPDLAS_PRUNE_ONE) {
+            if (config.nFerrys >= 3)
+                pruneAmount = 1;
+        }
         if (pruneAmount == 0) return;
 
         uint32_t totalPrune = pruneAmount * config.nFerrys;
@@ -134,6 +158,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::InitializeMobility(const std::vec
         if (currentDistance < 0 - 1 || distance < currentDistance) {
             currentDistance = distance;
             m_nextFerryIndex = i;
+            m_lastFerryIndex = i;
         }
     }
     m_reachedFirstNode = false;

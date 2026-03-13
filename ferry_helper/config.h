@@ -28,6 +28,12 @@ const std::string PARETO_7030 = "PARETO_7030";
 const std::string PARETO_6040 = "PARETO_6040";
 const std::set<std::string> PARETO_VALUES = { PARETO_9010, PARETO_8020, PARETO_7030, PARETO_6040 };
 
+const std::string RPDLAS_PRUNE_HALF = "RPDLAS_PRUNE_HALF";
+const std::string RPDLAS_PRUNE_ONE_THIRD = "RPDLAS_PRUNE_ONE_THIRD";
+const std::string RPDLAS_PRUNE_MAXIMAL = "RPDLAS_PRUNE_MAXIMAL";
+const std::string RPDLAS_PRUNE_CLUSTER = "RPDLAS_PRUNE_CLUSTER";
+const std::string RPDLAS_PRUNE_ONE = "RPDLAS_PRUNE_ONE";
+
 const std::string RPDLAS_NO_REROUTE_COLLECT_INROUTE = "RPDLAS_NO_REROUTE_COLLECT_INROUTE";
 const std::string RPDLAS_REROUTE_INSERT = "RPDLAS_REROUTE_INSERT";
 const std::string RPDLAS_REROUTE_OPTIMIZED = "RPDLAS_REROUTE_OPTIMIZED";
@@ -98,6 +104,7 @@ struct Config {
     uint32_t TABADLA_topK = 10;
 
     std::string RPDLAS_operationMode = RPDLAS_NO_REROUTE_COLLECT_INROUTE;
+    std::string RPDLAS_pruneMode = RPDLAS_PRUNE_HALF;
 
     // waypoint selection config, for Tabaf and its derived algorithm
     std::string waypointSelectMode = DETERMINISTIC;
@@ -154,6 +161,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("waypointSelectMode", "Waypoint selection mode", config.waypointSelectMode);
     cmd.AddValue("SR_PIGEON_V2_addlvt", "SR_PIGEON_V2, add lvt", config.SR_PIGEON_V2_addlvt);
     cmd.AddValue("RPDLAS_operationMode", "RPDLAS operation mode", config.RPDLAS_operationMode);
+    cmd.AddValue("RPDLAS_pruneMode", "RPDLAS prune mode", config.RPDLAS_pruneMode);
 
     cmd.Parse(argc, argv);
     return;

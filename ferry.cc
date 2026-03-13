@@ -35,6 +35,7 @@
 #include "ferry_app/tabara-dtn-app.h"
 #include "ferry_app/taba2s-dtn-app.h"
 #include "ferry_app/route-prune-delay-aware-dtn-app.h"
+#include "ferry_app/sr-tabaf-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -74,6 +75,9 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "RPDLAS") {
         return CreateObject<RoutePrunningDeadlineAwareShortcutDtnApp>();
     }
+    if (config.ALGORITHM_NAME == "SR_TABAF") {
+        return CreateObject<SingleRouteTabafDtnApp>();
+    }
     return nullptr;
 }
 
@@ -87,6 +91,7 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "TABARA")  return 1;
     if (config.ALGORITHM_NAME == "TABA2S")  return 1;
     if (config.ALGORITHM_NAME == "RPDLAS")  return 1;
+    if (config.ALGORITHM_NAME == "SR_TABAF")  return 1;
     return 1;
 }
 
