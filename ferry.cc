@@ -35,6 +35,7 @@
 #include "ferry_app/tabara-dtn-app.h"
 #include "ferry_app/taba2s-dtn-app.h"
 #include "ferry_app/route-prune-delay-aware-dtn-app.h"
+#include "ferry_app/multi-route-pigeon-dtn-app.h"
 #include "ferry_app/sr-tabaf-dtn-app.h"
 
 #include <vector>
@@ -75,9 +76,13 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "RPDLAS") {
         return CreateObject<RoutePrunningDeadlineAwareShortcutDtnApp>();
     }
+    if (config.ALGORITHM_NAME == "MRDLAS") {
+        return CreateObject<MultiRouteDeadlineAwareShortcutDtnApp>();
+    }
     if (config.ALGORITHM_NAME == "SR_TABAF") {
         return CreateObject<SingleRouteTabafDtnApp>();
     }
+
     return nullptr;
 }
 
@@ -92,6 +97,7 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "TABA2S")  return 1;
     if (config.ALGORITHM_NAME == "RPDLAS")  return 1;
     if (config.ALGORITHM_NAME == "SR_TABAF")  return 1;
+    if (config.ALGORITHM_NAME == "MRDLAS")  return 1;
     return 1;
 }
 
@@ -99,6 +105,10 @@ void CallGlobalFerryAppSetup() {
     NS_LOG_UNCOND("Calling global ferry setup for: " << config.ALGORITHM_NAME);
     if (config.ALGORITHM_NAME == "RPDLAS") {
         RPDLAS::FerrySetup();
+        return;
+    }
+    if (config.ALGORITHM_NAME == "MRDLAS") {
+        MRDLAS::FerrySetup();
         return;
     }
 }

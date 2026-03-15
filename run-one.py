@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SR_TABAF", # algorithm name
+    "name": "MRDLAS", # algorithm name
     "vi": False,
     "batch": "default",
     "run": "debug2", # run name for log file
@@ -34,7 +34,7 @@ params = {
 
 def build_cmd(program, params):
     args = " ".join(f"--{k}={v}" for k, v in params.items())
-    return f'./waf --run "{program} {args}"'
+    return f'./waf --run "{program} {args}" '
 
 def run_command(cmd):
     print(f"\n--- Running: {cmd} ---")

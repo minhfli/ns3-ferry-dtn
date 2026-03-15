@@ -19,6 +19,32 @@ struct TSPSolution {
     bool operator<(const TSPSolution& other) const {
         return cost < other.cost;
     }
+
+    void rollTo1() { //! only work if index 1 is in the order, and route size > 2
+        uint32_t oneIndex = 0;
+        for (uint32_t i = 0; i < order.size(); i++) {
+            if (order[i] == 1) {
+                oneIndex = i;
+                break;
+            }
+        }
+        std::rotate(order.begin(), order.begin() + oneIndex, order.end());
+        if (order[1] > order[order.size() - 1]) {
+            std::reverse(order.begin() + 1, order.end());
+        }
+    }
+
+    bool checkEqual(const TSPSolution& other) const {
+        if (std::abs(cost - other.cost) > 1e-6) {
+            return false;
+        }
+        for (uint32_t i = 0; i < order.size(); i++) {
+            if (order[i] != other.order[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 #pragma region "CLASSIC TSP"
@@ -164,8 +190,8 @@ std::vector<uint32_t> TSPTwoOptOptimize(const std::vector<point2D>& points, cons
     return order;
 }
 
-std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}) {
-    std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx);
+std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+    std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx, population_size, max_generation);
     order = TSPTwoOptOptimize(points, order);
     return order;
 }

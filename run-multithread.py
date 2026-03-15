@@ -44,9 +44,8 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS"],
-    "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS"],
-    # "name": [ "SR_TABAF"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS", "MRDLAS"],
+    "name": [ "MRDLAS"],
 
     "nGrounds": [30],
     # "nFerrys": [ 7, 10],
@@ -63,7 +62,7 @@ param_grid = { # change or set to default grid for custom run
     "ferryComm": [False, True],
 }
 
-FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2"] # only run ferry comm = true with these algorithm
+FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
     "PIGEON": {
@@ -88,6 +87,14 @@ algo_variants= {
         # },
     },
     "SR_PIGEON_V2": {
+        "default": {
+            "waypointSelectMode": "PROBABILISTIC",
+        },  
+        "DWS": {
+            "waypointSelectMode": "DETERMINISTIC",
+        },
+    },
+    "MRDLAS": {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  

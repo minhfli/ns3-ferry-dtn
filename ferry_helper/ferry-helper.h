@@ -13,20 +13,16 @@
 std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double areaWidth) {
     std::vector<point2D> points;
 
-    const int k = 30; // Số lần thử (rejection limit) cho mỗi điểm hoạt động, chuẩn là 30
-    double cellSize = r / std::sqrt(2.0); // Kích thước ô lưới để đảm bảo mỗi ô chỉ chứa tối đa 1 điểm
-
-    // Số lượng ô lưới theo chiều ngang/dọc
+    const int k = 30; // rejection limit
+    double cellSize = r / std::sqrt(2.0);
     int gridSize = std::ceil(areaWidth / cellSize);
 
-    // Lưới lưu trữ chỉ số (index) của điểm trong vector 'points'. -1 nghĩa là ô trống.
-    // Dùng vector 1 chiều để mô phỏng mảng 2 chiều: index = y * gridSize + x
+    //  index = y * gridSize + x
     std::vector<int> grid(gridSize * gridSize, -1);
 
     // Danh sách "active list" chứa các index của điểm cần xem xét
     std::vector<int> activeList;
 
-    // 2. Khởi tạo điểm đầu tiên ngẫu nhiên
     point2D p0 = { m_rand->GetValue(0, areaWidth) , m_rand->GetValue(0, areaWidth) };
     points.push_back(p0);
 
@@ -117,22 +113,16 @@ std::vector<point2D> PoissonDisk_BridsonSample(uint32_t n, double r, double area
 
 std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaWidth) {
     std::vector<point2D> points;
-    double rSq = r * r; // So sánh với r^2 để tránh dùng hàm sqrt()
+    double rSq = r * r;
 
-    // Cài đặt bộ sinh số ngẫu nhiên chuẩn
-
-    int maxAttemptsTotal = n * 1000; // Giới hạn số lần thử để tránh treo máy nếu không gian quá chật
+    int maxAttemptsTotal = n * 1000;
     int attempts = 0;
 
     while (points.size() < n && attempts < maxAttemptsTotal) {
-        // 1. Sinh ngẫu nhiên toàn cục (bất kỳ đâu trên bản đồ)
         point2D candidate = { m_rand->GetValue(0, areaWidth), m_rand->GetValue(0, areaWidth) };
 
         bool collision = false;
 
-        // 2. Kiểm tra khoảng cách với TẤT CẢ các điểm đã có
-        // Với n=50, vòng lặp này chạy rất nhanh. 
-        // Nếu n lớn (ví dụ > 5000), cách này sẽ chậm và cần tối ưu bằng Grid.
         for (const auto& p : points) {
             if (distSq(candidate, p) < rSq) {
                 collision = true;
@@ -140,7 +130,6 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
             }
         }
 
-        // 3. Nếu không va chạm, thêm vào danh sách
         if (!collision) {
             points.push_back(candidate);
         }
