@@ -38,6 +38,10 @@ const std::string RPDLAS_NO_REROUTE_COLLECT_INROUTE = "RPDLAS_NO_REROUTE_COLLECT
 const std::string RPDLAS_REROUTE_INSERT = "RPDLAS_REROUTE_INSERT";
 const std::string RPDLAS_REROUTE_OPTIMIZED = "RPDLAS_REROUTE_OPTIMIZED";
 
+const std::string MRDLAS_ONE_ROUTE_EACH = "MRDLAS_ONE_ROUTE_EACH";
+const std::string MRDLAS_ONE_ROUTE_2_FERRY = "MRDLAS_ONE_ROUTE_2_FERRY";
+
+
 
 struct Config {
     int randSeed = 1337;
@@ -106,6 +110,8 @@ struct Config {
     std::string RPDLAS_operationMode = RPDLAS_NO_REROUTE_COLLECT_INROUTE;
     std::string RPDLAS_pruneMode = RPDLAS_PRUNE_HALF;
 
+    std::string MRDLAS_routeMode = MRDLAS_ONE_ROUTE_EACH;
+
     // waypoint selection config, for Tabaf and its derived algorithm
     std::string waypointSelectMode = DETERMINISTIC;
 
@@ -162,6 +168,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("SR_PIGEON_V2_addlvt", "SR_PIGEON_V2, add lvt", config.SR_PIGEON_V2_addlvt);
     cmd.AddValue("RPDLAS_operationMode", "RPDLAS operation mode", config.RPDLAS_operationMode);
     cmd.AddValue("RPDLAS_pruneMode", "RPDLAS prune mode", config.RPDLAS_pruneMode);
+    cmd.AddValue("MRDLAS_routeMode", "MRDLAS route mode", config.MRDLAS_routeMode);
 
     cmd.Parse(argc, argv);
     return;

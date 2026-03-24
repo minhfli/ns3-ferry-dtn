@@ -59,7 +59,13 @@ namespace MRDLAS {
     uint32_t currentFerry = 0;
     std::vector<uint32_t> AssignRoute() {
         currentFerry = (currentFerry + 1) % ferryRoutes.size();
-        return ferryRoutes[currentFerry].order;
+        if (config.MRDLAS_routeMode == MRDLAS_ONE_ROUTE_EACH)
+            return ferryRoutes[currentFerry].order;
+        if (config.MRDLAS_routeMode == MRDLAS_ONE_ROUTE_2_FERRY) {
+            return ferryRoutes[currentFerry / 2].order;
+        }
+        return {};
+
     }
 };
 

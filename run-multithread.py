@@ -98,8 +98,9 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        "DWS": {
-            "waypointSelectMode": "DETERMINISTIC",
+        "Shared": {
+            "waypointSelectMode": "PROBABILISTIC",
+            "MRDLAS_routeMode": "MRDLAS_ONE_ROUTE_2_FERRY"
         },
     },
     "TABADLA": {
