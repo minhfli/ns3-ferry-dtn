@@ -130,6 +130,9 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
             included.push_back(i);
         }
     }
+    if (included.size() <= 3) {
+        return included;
+    }
 
     std::vector<TSPSolution> population(POP_SIZE);
     for (TSPSolution& sol : population) {

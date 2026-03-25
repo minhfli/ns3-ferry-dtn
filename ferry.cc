@@ -37,6 +37,7 @@
 #include "ferry_app/route-prune-delay-aware-dtn-app.h"
 #include "ferry_app/multi-route-pigeon-dtn-app.h"
 #include "ferry_app/sr-tabaf-dtn-app.h"
+#include "ferry_app/divided-coupling-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -82,6 +83,9 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "SR_TABAF") {
         return CreateObject<SingleRouteTabafDtnApp>();
     }
+    if (config.ALGORITHM_NAME == "DRC") {
+        return CreateObject<DividedRouteCouplingDtnApp>();
+    }
 
     return nullptr;
 }
@@ -98,10 +102,20 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "RPDLAS")  return 1;
     if (config.ALGORITHM_NAME == "SR_TABAF")  return 1;
     if (config.ALGORITHM_NAME == "MRDLAS")  return 1;
+    if (config.ALGORITHM_NAME == "DRC")  return config.nFerrys;
     return 1;
 }
 
-void CallGlobalFerryAppSetup() {
+std::vector<std::vector<uint32_t>> GetAlgoClusters() {
+    if (config.ALGORITHM_NAME == "PIGEON") return Clustering::TSPAidedBisect(groundNodePos, config.nFerrys);
+    if (config.ALGORITHM_NAME == "DRC") return Clustering::TSPAidedBisect(groundNodePos, config.nFerrys);
+
+    std::vector<std::vector<uint32_t>> clusters;
+    clusters.push_back(DataStructureHelper::GetIndexVector(config.nGrounds));
+    return clusters;
+}
+
+void CallGlobalFerryAppSetup(const std::vector<std::vector<uint32_t>>& clusters) {
     NS_LOG_UNCOND("Calling global ferry setup for: " << config.ALGORITHM_NAME);
     if (config.ALGORITHM_NAME == "RPDLAS") {
         RPDLAS::FerrySetup();
@@ -109,6 +123,18 @@ void CallGlobalFerryAppSetup() {
     }
     if (config.ALGORITHM_NAME == "MRDLAS") {
         MRDLAS::FerrySetup();
+        return;
+    }
+    if (config.ALGORITHM_NAME == "DRC") {
+        DRC::FerrySetup(clusters);
+        return;
+    }
+    return;
+}
+
+void CallLogAdditionalInfo(std::string filename) {
+    if (config.ALGORITHM_NAME == "DRC") {
+        DRC::LogAdditionalInfo(filename);
         return;
     }
 }
@@ -124,6 +150,7 @@ int main(int argc, char* argv[]) {
     ParseConfig(argc, argv);
 
     FerryVisualizer::vizFileName = "/mnt/d/coding/python/dtn-visualizer/trace/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
+    FerryVisualizer::vizAdditionalFileName = "/mnt/d/coding/python/dtn-visualizer/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".txt";
     Report::reportFileName = "/mnt/d/coding/python/dtn-visualizer/report/" + config.REPORT_BATCH + "/" + config.ALGORITHM_NAME + "_" + config.SIMULATION_RUN + ".log";
 
     if (config.skipIfExist) {
@@ -240,8 +267,11 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     BundleGenerationHelper::Init();
     uint32_t groupCount = GetAlgoGroupCount();
-    auto clusters = Clustering::KMeans(groundNodePos, groupCount);
+    auto clusters = GetAlgoClusters();
 
+    for (uint32_t n = 0; n < config.nGrounds; n++) {
+        groundNodeIps.push_back(i.GetAddress(n));
+    }
     for (uint32_t group = 0; group < groupCount; group++) {
         auto& cluster = clusters[group];
         // Cài App cho Ground Nodes
@@ -250,7 +280,6 @@ int main(int argc, char* argv[]) {
             Ptr<Socket> socket = Socket::CreateSocket(gNode, tid);
             Ptr<BaseDtnApp> app = createApp();
             Ipv4Address address = i.GetAddress(gNode->GetId());
-            groundNodeIps.push_back(address);
 
             nodeType[address.Get()] = NODE_TYPE_GROUND;
             nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
@@ -259,18 +288,14 @@ int main(int argc, char* argv[]) {
             gNode->AddApplication(app);
             app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
             app->SetStartTime(Seconds(1.0));
-            app->SetStopTime(Seconds(config.simTime));
+            app->SetStopTime(Seconds(config.simTime + config.warmupTime));
             app->SetGroup(group);
             app->EnableBundleGeneration(groundGenRate[n], true);
         }
     }
-    // Cài App cho Ferry (Index trong container i là config.nGrounds)
-    std::set<uint32_t> clusters_to_assign;
-    for (uint32_t n = 0; n < config.nFerrys; n++) {
-        clusters_to_assign.insert(n % groupCount);
-    }
 
-    CallGlobalFerryAppSetup();
+    // Cài App cho Ferry (Index trong container i là config.nGrounds)
+    CallGlobalFerryAppSetup(clusters);
 
     for (uint32_t n = 0; n < config.nFerrys; n++) {
         Ptr<Node> fNode = ferryNode.Get(n);
@@ -281,31 +306,19 @@ int main(int argc, char* argv[]) {
 
         nodeType[address.Get()] = NODE_TYPE_FERRY;
         nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
+        ferryIps.push_back(address);
 
         if (groupCount == 1) {
             nodeGroup[address.Get()] = 0;
         }
         else {
-            //assign closest cluster
-            double minDist = std::numeric_limits<double>::max();
-            uint32_t closestCluster = 0;
-            for (auto i : clusters_to_assign) {
-                point2D centroid = getCentroid(groundNodePos, clusters[i], { 0,0 });
-                double distance = dist(ferryNodePos[n], centroid);
-                if (distance < minDist) {
-                    minDist = distance;
-                    closestCluster = i;
-                }
-            }
-
-            nodeGroup[address.Get()] = closestCluster;
-            clusters_to_assign.erase(closestCluster);
+            nodeGroup[address.Get()] = n % groupCount;
         }
 
         fNode->AddApplication(app);
         app->Setup(fNode, socket, address, config.ferryBufferSize, NODE_TYPE_FERRY);
         app->SetStartTime(Seconds(1.0));
-        app->SetStopTime(Seconds(config.simTime));
+        app->SetStopTime(Seconds(config.simTime + config.warmupTime));
         app->SetGroup(nodeGroup[address.Get()]);
         app->InitializeMobility(clusters[nodeGroup[address.Get()]]);
     }
@@ -314,11 +327,12 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     Report::Init();
     FerryVisualizer::SetUp();
-    Simulator::Stop(Seconds(config.simTime)); // Đã set trong app
+    Simulator::Stop(Seconds(config.simTime + config.warmupTime)); // Đã set trong app
     Simulator::Run();
     Simulator::Destroy();
     FerryVisualizer::CleanUp();
     Report::Export();
+    CallLogAdditionalInfo(FerryVisualizer::vizAdditionalFileName);
 
     return 0;
 }

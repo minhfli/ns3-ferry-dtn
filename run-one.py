@@ -5,11 +5,12 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "MRDLAS", # algorithm name
-    "vi": False,
+    "name": "DRC", # algorithm name
+    "vi": True,
     "batch": "default",
     "run": "debug2", # run name for log file
-    "simTime": 7500,
+    "simTime": 1,
+    "warmupTime": 1,
     #* some algorithm specific config
     "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
     "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
@@ -19,16 +20,16 @@ params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 30,
-    "nFerrys": 5,
+    "nFerrys": 10,
     "ferrySpeed": 12,
     "groundBufferSize": 50,
-    "ferryBufferSize": 300,
-    "minGenRate": 5.0, # sec/packet
-    "maxGenRate": 25.0, # sec
+    "ferryBufferSize": 500,
+    "minGenRate": 10.0, # sec/packet
+    "maxGenRate": 20.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
-    "genDstScheduler": "PARETO_7030",
+    "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
-    "bundleTTL": 600000000, # microsec
+    "bundleTTL": 900000000, # microsec
     "ferryComm": True, # enable communication between ferry
 }
 

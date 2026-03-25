@@ -52,7 +52,7 @@ struct Config {
     bool skipIfExist = false;
     // sim config
     double simTime = 5000.0; // seconds
-    double startGeneraionTime = 300.0; // seconds, warmup before
+    double warmupTime = 300.0; // seconds
     double commRange = 150.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 4000; // meters
@@ -97,7 +97,7 @@ struct Config {
     uint32_t bundlePayload = 102400; // 100KB, chunking will be implemented later
 
     // visualization config
-    uint32_t positionLogInterval = 250; // ms ~ 0.25s
+    uint32_t positionLogInterval = 1000; // ms ~ 0.25s
 
     uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
 
@@ -114,6 +114,10 @@ struct Config {
 
     // waypoint selection config, for Tabaf and its derived algorithm
     std::string waypointSelectMode = DETERMINISTIC;
+
+    uint32_t DRC_refineIterations = 10;
+    uint32_t DRC_sampleCount = 1000;
+    double DRC_lastContactTimeout = 10000000; // 12 sec
 
 } config;
 
@@ -139,6 +143,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("skip", "Skip if exist", config.skipIfExist);
     // -- general config --
     cmd.AddValue("simTime", "Simulation time", config.simTime);
+    cmd.AddValue("warmupTime", "Warmup time", config.warmupTime);
     cmd.AddValue("commRange", "Communication range", config.commRange);
     cmd.AddValue("ferryHeight", "Ferry height", config.ferryHeight);
     cmd.AddValue("areaWidth", "Area width", config.areaWidth);

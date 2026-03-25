@@ -7,6 +7,22 @@ struct point2D {
     double length() {
         return std::sqrt(x * x + y * y);
     }
+
+    point2D operator+(const point2D& other) const {
+        return { x + other.x, y + other.y };
+    }
+
+    point2D operator-(const point2D& other) const {
+        return { x - other.x, y - other.y };
+    }
+
+    point2D operator*(double scalar) const {
+        return { x * scalar, y * scalar };
+    }
+
+    point2D operator/(double scalar) const {
+        return { x / scalar, y / scalar };
+    }
 };
 
 inline double dist(const point2D& a, const point2D& b) {
@@ -18,6 +34,13 @@ inline double dist(const point2D& a, const point2D& b) {
 inline double distSq(const point2D& a, const point2D& b) {
     return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 }
+
+inline point2D midPoint(const point2D& a, const point2D& b) {
+    return { (a.x + b.x) / 2, (a.y + b.y) / 2 };
+}
+
+typedef std::pair<point2D, point2D> line2D;
+
 
 struct color {
     int r;

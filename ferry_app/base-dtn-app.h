@@ -208,7 +208,7 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     nodeGenRate[m_myIp.Get()] = m_bundleGenRate;
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + bundleGenRand->GetValue(0.0, averageBundleTime);
-    Simulator::Schedule(Seconds(startTime + config.startGeneraionTime), &BaseDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(startTime + config.warmupTime), &BaseDtnApp::GenerateBundle, this);
 }
 
 void BaseDtnApp::StartApplication(void) {
@@ -372,12 +372,14 @@ void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     FerryRouteHeader fRouteHeader;
     fRouteHeader.SetGroup(m_groupId);
     fRouteHeader.SetMode(m_mode);
-    auto routeIp = this->GetServingNodeRoute();
-    auto routeArrival = this->GetServingExpectedArrival();
-    uint32_t count = routeIp.size();
-    fRouteHeader.SetCount(count);
-    fRouteHeader.SetWaypoints(routeIp);
-    fRouteHeader.SetExpectedArrival(routeArrival);
+    if (config.ALGORITHM_NAME != "DRC") {
+        auto routeIp = this->GetServingNodeRoute();
+        auto routeArrival = this->GetServingExpectedArrival();
+        uint32_t count = routeIp.size();
+        fRouteHeader.SetCount(count);
+        fRouteHeader.SetWaypoints(routeIp);
+        fRouteHeader.SetExpectedArrival(routeArrival);
+    }
 
     BufferStateHeader bufferStateHeader;
     bufferStateHeader.SetCapacity(m_maxBufferSize);

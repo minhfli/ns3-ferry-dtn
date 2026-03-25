@@ -257,7 +257,7 @@ class FerryRouteHeader : public Header {
     std::vector<uint64_t> m_expectedArrival;
 
     public:
-    FerryRouteHeader() : m_group(0), m_mode(0), m_count(0), m_waypoints() {}
+    FerryRouteHeader() : m_group(0), m_mode(0), m_count(0), m_waypoints(), m_expectedArrival() {}
     void SetGroup(uint8_t group) { m_group = group; }
     uint8_t GetGroup() const { return m_group; }
 

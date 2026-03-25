@@ -32,6 +32,8 @@ std::vector<point2D> groundNodePos;
 std::vector<double> groundReceiveChances;
 // array of bundle generation rate of ground node (sec/bundle)
 std::vector<double> groundGenRate;
+// array of node ip !!! THIS IS NOT A MAP
+std::vector<Ipv4Address> ferryIps;
 
 // mapping from IP to type
 std::unordered_map<uint32_t, uint8_t> nodeType;

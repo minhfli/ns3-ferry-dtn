@@ -23,6 +23,7 @@ using namespace ns3;
 
 namespace FerryVisualizer {
     std::string vizFileName = "/mnt/d/coding/python/dtn-visualizer/dtn.log";
+    std::string vizAdditionalFileName = "/mnt/d/coding/python/dtn-visualizer/dtn-additional.log";
     std::fstream file;
 
     void logPosition();
@@ -135,6 +136,7 @@ namespace FerryVisualizer {
     }
 
     void logPacket(const std::string& src, const std::string& dest, const std::string meta) {
+        return; // TODO temp
         if (!config.enableVisualization) return;
 
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
@@ -182,6 +184,7 @@ namespace FerryVisualizer {
     }
 
     void logBeacon(std::string node) {
+        return; // TODO temp
         if (!config.enableVisualization) return;
 
         file << "Time=" << Simulator::Now().GetSeconds() << std::endl;
