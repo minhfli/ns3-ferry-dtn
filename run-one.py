@@ -5,22 +5,22 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "DRC", # algorithm name
+    "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug2", # run name for log file
-    "simTime": 1,
-    "warmupTime": 1,
+    "run": "debug15", # run name for log file
+    "simTime": 7200,
+    "warmupTime": 1000,
     #* some algorithm specific config
-    "RPDLAS_operationMode": "RPDLAS_NO_REROUTE_COLLECT_INROUTE",
-    "RPDLAS_pruneMode": "RPDLAS_PRUNE_MAXIMAL",
+    "DRC_graphMode": "DRC_GABRIEL",
     "waypointSelectMode" :"PROBABILISTIC",
+    "HUB_nHubs": 2,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 30,
-    "nFerrys": 10,
+    "nFerrys": 15,
     "ferrySpeed": 12,
     "groundBufferSize": 50,
     "ferryBufferSize": 500,

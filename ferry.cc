@@ -38,6 +38,9 @@
 #include "ferry_app/multi-route-pigeon-dtn-app.h"
 #include "ferry_app/sr-tabaf-dtn-app.h"
 #include "ferry_app/divided-coupling-dtn-app.h"
+#include "ferry_app/hub-coupling-dtn-app.h"
+#include "ferry_app/virtual-hub-coupling-dtn-app.h"
+#include "ferry_app/hub-cluster-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -86,6 +89,15 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "DRC") {
         return CreateObject<DividedRouteCouplingDtnApp>();
     }
+    if (config.ALGORITHM_NAME == "HUB") {
+        return CreateObject<HubDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "VHUB") {
+        return CreateObject<VirtualHubDtnApp>();
+    }
+    if (config.ALGORITHM_NAME == "CHUB") {
+        return CreateObject<HubBasedClusteringDtnApp>();
+    }
 
     return nullptr;
 }
@@ -103,12 +115,28 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "SR_TABAF")  return 1;
     if (config.ALGORITHM_NAME == "MRDLAS")  return 1;
     if (config.ALGORITHM_NAME == "DRC")  return config.nFerrys;
+    if (config.ALGORITHM_NAME == "HUB") return config.nFerrys;
+    if (config.ALGORITHM_NAME == "VHUB") return config.nFerrys;
+    if (config.ALGORITHM_NAME == "CHUB") return config.nFerrys;
+
     return 1;
 }
 
 std::vector<std::vector<uint32_t>> GetAlgoClusters() {
     if (config.ALGORITHM_NAME == "PIGEON") return Clustering::TSPAidedBisect(groundNodePos, config.nFerrys);
     if (config.ALGORITHM_NAME == "DRC") return Clustering::TSPAidedBisect(groundNodePos, config.nFerrys);
+    if (config.ALGORITHM_NAME == "VHUB") return Clustering::TSPAidedBisect(groundNodePos, config.nFerrys);
+    if (config.ALGORITHM_NAME == "HUB") {
+        auto clusters = Clustering::TSPAidedBisect(groundNodePos, config.nFerrys - config.HUB_nHubs);
+        for (uint32_t i = 0; i < config.HUB_nHubs; i++) {
+            clusters.push_back({});
+        }
+        return clusters;
+    }
+    if (config.ALGORITHM_NAME == "CHUB") {
+        auto clusters = CHUB::GetCluster();
+        return clusters;
+    }
 
     std::vector<std::vector<uint32_t>> clusters;
     clusters.push_back(DataStructureHelper::GetIndexVector(config.nGrounds));
@@ -129,14 +157,40 @@ void CallGlobalFerryAppSetup(const std::vector<std::vector<uint32_t>>& clusters)
         DRC::FerrySetup(clusters);
         return;
     }
+    if (config.ALGORITHM_NAME == "HUB") {
+        HUB::FerrySetup(clusters);
+        return;
+    }
+    if (config.ALGORITHM_NAME == "VHUB") {
+        VHUB::FerrySetup(clusters);
+        return;
+    }
+    if (config.ALGORITHM_NAME == "CHUB") {
+        CHUB::FerrySetup();
+        return;
+    }
     return;
 }
 
 void CallLogAdditionalInfo(std::string filename) {
+    if (!config.enableVisualization) return;
     if (config.ALGORITHM_NAME == "DRC") {
         DRC::LogAdditionalInfo(filename);
         return;
     }
+    if (config.ALGORITHM_NAME == "HUB") {
+        HUB::LogAdditionalInfo(filename);
+        return;
+    }
+    if (config.ALGORITHM_NAME == "VHUB") {
+        VHUB::LogAdditionalInfo(filename);
+        return;
+    }
+    if (config.ALGORITHM_NAME == "CHUB") {
+        CHUB::LogAdditionalInfo(filename);
+        return;
+    }
+    return;
 }
 
 // ===========================================================================

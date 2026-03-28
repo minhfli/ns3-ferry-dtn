@@ -20,7 +20,9 @@ namespace MRDLAS {
         for (uint32_t g = 0; g < config.nGrounds; g++) {
             auto route = TSPHelper(
                 groundNodePos,
-                { g },
+                (std::set<uint32_t>) {
+                g
+            },
                 100, 4000
             ); // remove one node from route
 
@@ -38,11 +40,11 @@ namespace MRDLAS {
             }
             route.insert(route.begin() + minIndex + 1, g); // insert removed node to route
             ferryRoutes[g].order = route;
-            ferryRoutes[g].cost = ComputeCost(route, groundNodePos);
+            ferryRoutes[g].cost = ComputeTSPCost(route, groundNodePos);
             ferryRoutes[g].rollTo1();
         }
-        ferryRoutes[config.nGrounds].order = TSPHelper(groundNodePos, {}, 100, 4000); // one best route
-        ferryRoutes[config.nGrounds].cost = ComputeCost(ferryRoutes[config.nGrounds].order, groundNodePos);
+        ferryRoutes[config.nGrounds].order = TSPHelper(groundNodePos, std::set<uint32_t>(), 100, 4000); // one best route
+        ferryRoutes[config.nGrounds].cost = ComputeTSPCost(ferryRoutes[config.nGrounds].order, groundNodePos);
         ferryRoutes[config.nGrounds].rollTo1();
 
         std::sort(ferryRoutes.begin(), ferryRoutes.end());

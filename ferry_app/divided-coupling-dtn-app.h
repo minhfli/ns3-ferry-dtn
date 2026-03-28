@@ -14,12 +14,7 @@
 
 #pragma region DRC Setup
 namespace DRC {
-
-    struct waypoint2D {
-        point2D pos;
-        uint32_t tag; // id of ground node or ferry (if this is a rendezvous wp)
-        bool isRendezvous; // is this waypoint a rendezvous, a waypoint that two uav meet ?
-    };
+    typedef std::vector<waypoint2D> DRCRoute;
     struct RendezvousSolution {
         uint32_t idx1;
         uint32_t idx2;
@@ -32,38 +27,33 @@ namespace DRC {
     std::vector<std::vector<uint32_t>> m_clusters;
     Graph m_connectGraph;
 
-    typedef std::vector<waypoint2D> DRCRoute;
-    DRCRoute TwoOpt(DRCRoute route) {
+
+    DRCRoute CleanupRoute(DRCRoute route) {
         uint32_t n = route.size();
-        if (n <= 3) return route;
-        double currentCost = 0;
+
+        DRCRoute newRoute;
         for (uint32_t i = 0; i < n; i++) {
-            point2D A = route[i].pos;
-            point2D B = route[(i + 1) % n].pos;
-            currentCost += dist(A, B);
-        }
-        bool improved = true;
-        while (improved) {
-            improved = false;
-            for (uint32_t i = 0; i < n - 2; i++) {
-                for (uint32_t j = i + 2; j < n; j++) {
-                    // std::reverse(route.begin() + i + 1, route.begin() + j + 1);
-                    double newCost = currentCost;
-                    point2D A = route[i].pos;
-                    point2D B = route[(i + 1) % n].pos;
-                    point2D C = route[j].pos;
-                    point2D D = route[(j + 1) % n].pos;
-                    newCost += dist(A, C) + dist(B, D);
-                    newCost -= dist(A, B) + dist(C, D);
-                    if (newCost < currentCost - 0.01) {
-                        std::reverse(route.begin() + i + 1, route.begin() + j + 1);
-                        currentCost = newCost;
-                        improved = true;
-                    }
+            if (!route[i].isRendezvous) {
+                newRoute.push_back(route[i]);
+                continue;
+            }
+            bool inserted = false;
+            for (auto& newWP : newRoute) {
+                if (!newWP.isRendezvous) continue;
+                point2D A = newWP.pos;
+                point2D B = newRoute[i].pos;
+                if (dist(A, B) < config.commRange * 0.1) {
+                    newWP.tagList.push_back(route[i].tag);
+                    inserted = true;
+                    break;
                 }
             }
+            if (!inserted) {
+                newRoute.push_back(route[i]);
+                newRoute.back().tagList.push_back(route[i].tag);
+            }
         }
-        return route;
+        return newRoute;
     }
 
     std::pair<point2D, double> SampleRendezvous(point2D A, point2D B, point2D C, point2D D, double l1, double l2) {
@@ -152,8 +142,10 @@ namespace DRC {
     }
 
     std::vector<std::vector<uint32_t>> m_groupDistance;
-    std::vector<DRCRoute> routes;
+    std::vector<DRCRoute> m_routes;
+    std::vector<double> m_routeLength;
     void FerrySetup(const std::vector<std::vector<uint32_t>>& clusters) {
+        algoConfig.sendRouteInHello = false;
         m_clusters = clusters;
         NS_ASSERT_MSG(config.nFerrys == clusters.size(), "FATAL: Number of ferry and cluster must equal");
 
@@ -162,14 +154,22 @@ namespace DRC {
         for (auto& cluster : clusters) {
             centroid.push_back(getCentroid(groundNodePos, cluster, { 0,0 }));
         }
-        m_connectGraph = BuildOneCenterGraph(centroid);
+        if (config.DRC_graphMode == DRC_ONE_CENTER)
+            m_connectGraph = BuildOneCenterGraph(centroid);
+        else if (config.DRC_graphMode == DRC_TWO_CENTER)
+            m_connectGraph = BuildTwoCenterGraph(centroid);
+        else if (config.DRC_graphMode == DRC_GABRIEL)
+            m_connectGraph = BuildGabrielGraph(centroid);
+        else
+            NS_ASSERT_MSG(false, "FATAL: Invalid graph mode " + config.DRC_graphMode);
 
         NS_LOG_UNCOND("DRC: Calculate initial routes..");
-        routes.resize(config.nFerrys);
+        m_routes.resize(config.nFerrys);
+        m_routeLength.resize(config.nFerrys);
         for (uint32_t f = 0; f < config.nFerrys; f++) {
             auto route = TSPHelper(groundNodePos, DataStructureHelper::GetReversedSet(clusters[f], groundNodePos.size()), 100, 2000);
             for (uint32_t i : route) {
-                routes[f].push_back({ groundNodePos[i], i, false });
+                m_routes[f].push_back({ groundNodePos[i], i, false });
             }
         }
 
@@ -185,18 +185,31 @@ namespace DRC {
         for (auto& pair : connectIndexList) {
             uint32_t u = pair.first;
             uint32_t v = pair.second;
-            auto newRoutes = connectRoute(routes[u], routes[v], u, v);
-            routes[u] = newRoutes.first;
-            routes[v] = newRoutes.second;
+            auto newRoutes = connectRoute(m_routes[u], m_routes[v], u, v);
+            m_routes[u] = newRoutes.first;
+            m_routes[v] = newRoutes.second;
         }
         for (uint32_t i = 0; i <= config.DRC_refineIterations; i++) {
             NS_LOG_UNCOND("DRC: Refinning connections.. " << i);
             for (auto& pair : connectIndexList) {
                 uint32_t u = pair.first;
                 uint32_t v = pair.second;
-                auto newRoutes = connectRoute(routes[u], routes[v], u, v);
-                routes[u] = newRoutes.first;
-                routes[v] = newRoutes.second;
+                auto newRoutes = connectRoute(m_routes[u], m_routes[v], u, v);
+                m_routes[u] = newRoutes.first;
+                m_routes[v] = newRoutes.second;
+            }
+        }
+        NS_LOG_UNCOND("DRC: Cleaning up routes..");
+        for (uint32_t f = 0; f < config.nFerrys; f++) {
+            m_routes[f] = CleanupRoute(m_routes[f]);
+        }
+
+        for (uint32_t f = 0; f < config.nFerrys; f++) {
+            m_routeLength[f] = 0;
+            for (uint32_t i = 0; i < m_routes[f].size(); i++) {
+                point2D A = m_routes[f][i].pos;
+                point2D B = m_routes[f][(i + 1) % m_routes[f].size()].pos;
+                m_routeLength[f] += dist(A, B);
             }
         }
 
@@ -224,7 +237,7 @@ namespace DRC {
     DRCRoute AssignRoute() {
         currentFerry++;
         NS_ASSERT_MSG(currentFerry < config.nFerrys, "FATAL: Ferry index out of bound");
-        return routes[currentFerry];
+        return m_routes[currentFerry];
     }
 
     void LogAdditionalInfo(std::string filename) {
@@ -249,7 +262,7 @@ namespace DRC {
             file << "\n";
         }
 
-        for (auto r : routes) {
+        for (auto r : m_routes) {
             for (auto p : r) {
                 file << p.pos.x << " " << p.pos.y << " ";
             }
@@ -289,7 +302,7 @@ class DividedRouteCouplingDtnApp : public BaseDtnApp {
     int m_direction;
     DRC::DRCRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
-
+    std::map<uint32_t, bool> m_metParter;
     void ScheduleNextWaypoint();
 };
 
@@ -297,37 +310,97 @@ NS_OBJECT_ENSURE_REGISTERED(DividedRouteCouplingDtnApp);
 
 void DividedRouteCouplingDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) {
 
-    m_direction = m_rand->GetInteger(0, 1);
-    m_direction = 2 * m_direction - 1; // -1 or 1
-    m_nextWaypointIndex = 0;
+    m_direction = 1;
     auto exclude = DataStructureHelper::GetReversedSet(servingNodesIndex, groundNodePos.size());
     m_ferryRoute = DRC::AssignRoute();
+    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
+        if (m_ferryRoute[i].isRendezvous) {
+            m_nextWaypointIndex = i - m_direction;
+            if (m_nextWaypointIndex < 0) m_nextWaypointIndex += m_ferryRoute.size();
+            break;
+        }
+    }
     Simulator::Schedule(Seconds(0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
 }
 
 void DividedRouteCouplingDtnApp::ScheduleNextWaypoint() {
     Vector3D currentPos = m_mobility->GetPosition();
 
-    if (m_reachedFirstWaypoint) {
+    if (m_reachedFirstWaypoint && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+        m_reachedFirstWaypoint = true;
         auto currentWaypoint = m_ferryRoute[m_nextWaypointIndex];
-        if (currentWaypoint.isRendezvous) {
-            uint32_t ferryId = ferryIps[currentWaypoint.tag].Get();
-            bool wait = false;
-            if (m_neighbor.find(ferryId) == m_neighbor.end()) {
-                wait = true;
+        bool wait = false;
+        for (auto f : currentWaypoint.tagList) { // xét từng đối tác sẽ gặp tại waypoint này
+            if (m_metParter.find(f) != m_metParter.end() && m_metParter[f])
+                continue; // đã gặp trong thời gian chờ
+
+            uint32_t ferryId = ferryIps[f].Get();
+
+            if (config.DRC_graphMode == DRC_ONE_CENTER || config.DRC_graphMode == DRC_TWO_CENTER) {
+                bool isLeaf = DRC::m_connectGraph.adjacent[m_groupId].size() == 1;
+                if (m_neighbor.find(ferryId) == m_neighbor.end()) { // chưa từng gặp
+                    wait = true; // không break để có thể kiểm tra các partner khác
+                }
+                else {
+                    double lastContact = (double)m_neighbor[ferryId].lastContactTime / 1000000.0;
+                    double currentTime = Simulator::Now().GetSeconds();
+                    lastContact = currentTime - lastContact;
+
+                    if (lastContact > config.DRC_lastContactTimeout) { // đã lâu chưa gặp
+                        if (isLeaf) {
+                            double neighborRouteLength = DRC::m_routeLength[(uint32_t)nodeGroup[ferryId]];
+                            double myRouteLength = DRC::m_routeLength[(uint32_t)m_groupId];
+                            double nbDistanceTillContact = neighborRouteLength - lastContact * config.ferrySpeed;
+                            if (myRouteLength * 1.5 > nbDistanceTillContact) { // có thể chạy 1 vòng nữa không ?
+                                wait = true;
+                            }
+                        }
+                        else
+                            wait = true; // nếu không phải uav lá (chỉ kết nối với 1 uav khác) thì phải chờ
+                    }
+                    else {
+                        m_metParter[f] = true;
+                    }
+                }
+            }
+            else if (config.DRC_graphMode == DRC_GABRIEL) {
+                bool isLeaf = DRC::m_connectGraph.adjacent[m_groupId].size() == 1;
+                if (m_neighbor.find(ferryId) == m_neighbor.end()) {
+                    wait = true;
+                }
+                else {
+                    double lastContact = (double)m_neighbor[ferryId].lastContactTime / 1000000.0;
+                    double currentTime = Simulator::Now().GetSeconds();
+                    lastContact = currentTime - lastContact;
+
+                    if (lastContact > config.DRC_lastContactTimeout) { // đã lâu chưa gặp
+                        if (isLeaf) {
+                            double neighborRouteLength = DRC::m_routeLength[(uint32_t)nodeGroup[ferryId]];
+                            double myRouteLength = DRC::m_routeLength[(uint32_t)m_groupId];
+                            double nbDistanceTillContact = neighborRouteLength - lastContact * config.ferrySpeed;
+                            if (myRouteLength * 1.5 > nbDistanceTillContact) { // có thể chạy 1 vòng nữa không ?
+                                wait = true;
+                            }
+                        }
+                        else
+                            if (DRC::m_routeLength[(uint32_t)nodeGroup[ferryId]] > DRC::m_routeLength[(uint32_t)m_groupId])
+                                wait = true;
+                    }
+                    else {
+                        m_metParter[f] = true;
+                    }
+                }
             }
             else {
-                double lastContact = (double)m_neighbor[ferryId].lastContactTime / 1000000.0;
-                lastContact = Simulator::Now().GetSeconds() - lastContact;
-                if (lastContact > config.DRC_lastContactTimeout)
-                    wait = true;
-            }
-            if (wait) {
-                m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-                Simulator::Schedule(Seconds(2.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
-                return;
+                NS_ASSERT_MSG(false, "FATAL: Invalid graph mode " + config.DRC_graphMode);
             }
         }
+        if (wait) {
+            m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
+            Simulator::Schedule(Seconds(2.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
+            return;
+        }
+        m_metParter.clear(); // cleanup after leaving this waypoint
     }
     m_reachedFirstWaypoint = true;
     m_nextWaypointIndex = (m_nextWaypointIndex + m_direction + m_ferryRoute.size()) % m_ferryRoute.size();

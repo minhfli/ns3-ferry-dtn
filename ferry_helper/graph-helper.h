@@ -17,8 +17,172 @@ struct Graph {
     double cost = 0;
 };
 
+
+// khoảng cách theo số bước nhảy, BFS 
+std::vector<std::vector<uint32_t>> GetGraphDistanceMatrix(const Graph& g) {
+    std::vector<std::vector<uint32_t>> dists(g.n, std::vector<uint32_t>(g.n, 999));
+    for (uint32_t i = 0; i < g.n; ++i) {
+        dists[i][i] = 0;
+        std::vector<uint32_t> q;
+        q.push_back(i);
+        uint32_t head = 0;
+        while (head < q.size()) {
+            uint32_t u = q[head++];
+            for (uint32_t v : g.adjacent[u]) {
+                if (dists[i][v] == 999) {
+                    dists[i][v] = dists[i][u] + 1;
+                    q.push_back(v);
+                }
+            }
+        }
+    }
+    return dists;
+}
+
+void bronKerbosch(std::set<uint32_t> R, std::set<uint32_t> P, std::set<uint32_t> X,
+                  const std::vector<std::vector<bool>>& graphMtrx,
+                  std::vector<std::set<uint32_t>>& maximalCliques) {
+    if (P.empty() && X.empty()) {
+        if (R.size() >= 2) maximalCliques.push_back(R);
+        return;
+    }
+    auto it = P.begin();
+    while (it != P.end()) {
+        uint32_t v = *it;
+        std::set<uint32_t> newR = R; newR.insert(v);
+        std::set<uint32_t> newP, newX;
+        for (uint32_t neighbor = 0; neighbor < graphMtrx.size(); ++neighbor) {
+            if (graphMtrx[v][neighbor]) {
+                if (P.count(neighbor)) newP.insert(neighbor);
+                if (X.count(neighbor)) newX.insert(neighbor);
+            }
+        }
+        bronKerbosch(newR, newP, newX, graphMtrx, maximalCliques);
+        P.erase(it++);
+        X.insert(v);
+    }
+}
+
+std::vector<std::vector<uint32_t>> findInitialHubs(const Graph& g) {
+    auto path_dists = GetGraphDistanceMatrix(g);
+
+    // ma trận kết nối bậc 2, 2 nút kết nối với nhau nếu khoảng cách của chúng trên đò thị g <= 2
+    std::vector<std::vector<bool>> g2Mtrx(g.n, std::vector<bool>(g.n, false));
+    std::set<std::pair<uint32_t, uint32_t>> edgesG2;
+
+    for (uint32_t i = 0; i < g.n; ++i) {
+        for (uint32_t j = i + 1; j < g.n; ++j) {
+            if (path_dists[i][j] <= 2) {
+                g2Mtrx[i][j] = g2Mtrx[j][i] = true;
+                edgesG2.insert({ i, j });
+            }
+        }
+    }
+
+    std::vector<std::set<uint32_t>> cliques;
+    std::set<uint32_t> P;
+    for (uint32_t i = 0; i < g.n; ++i) P.insert(i);
+    bronKerbosch({}, P, {}, g2Mtrx, cliques);
+
+    // Tham lam phủ hết các cạnh G2
+    std::vector<std::vector<uint32_t>> selectedHubs;
+    while (!edgesG2.empty()) { // Khi nào còn cạnh chưa được phủ bởi 1 hub
+        int bestIdx = -1;
+        std::set<std::pair<uint32_t, uint32_t>> bestCovered;
+
+        for (int k = 0; k < cliques.size(); ++k) {
+            std::set<std::pair<uint32_t, uint32_t>> covered;
+            std::vector<uint32_t> nodes(cliques[k].begin(), cliques[k].end());
+            for (size_t i = 0; i < nodes.size(); ++i) {
+                for (size_t j = i + 1; j < nodes.size(); ++j) {
+                    std::pair<uint32_t, uint32_t> edge = { std::min(nodes[i], nodes[j]), std::max(nodes[i], nodes[j]) };
+                    if (edgesG2.count(edge)) covered.insert(edge);
+                }
+            }
+            if ((int)covered.size() > (int)bestCovered.size()) { // chọn clique phủ được nhiều cạnh còn lại nhất
+                bestCovered = covered;
+                bestIdx = k;
+            }
+        }
+
+        if (bestIdx != -1) {
+            selectedHubs.push_back(std::vector<uint32_t>(cliques[bestIdx].begin(), cliques[bestIdx].end()));
+            for (auto const& e : bestCovered) edgesG2.erase(e); // loại bỏ các cạnh đã được phủ
+        }
+        else break;
+    }
+    return selectedHubs;
+}
+
+double getDiameter(const std::vector<uint32_t>& idx, const std::vector<point2D>& points) {
+    double maxD = 0;
+    for (size_t i = 0; i < idx.size(); ++i) {
+        for (size_t j = i + 1; j < idx.size(); ++j) {
+            maxD = std::max(maxD, dist(points[idx[i]], points[idx[j]]));
+        }
+    }
+    return maxD;
+}
+
+std::vector<std::vector<uint32_t>> mergeHubsToK(std::vector<std::vector<uint32_t>> hubs, const Graph& g, uint32_t k) {
+    while (hubs.size() > k) {
+        int bestI = -1, bestJ = -1;
+        double minDiameter = 1e18;
+
+        for (size_t i = 0; i < hubs.size(); ++i) {
+            for (size_t j = i + 1; j < hubs.size(); ++j) {
+                // đường kính khi gộp 2 hubs làm 1
+                double d = getDiameter(hubs[i], g.points);
+                d = std::max(d, getDiameter(hubs[j], g.points));
+                for (uint32_t a : hubs[i]) {
+                    for (uint32_t b : hubs[j]) {
+                        d = std::max(d, dist(g.points[a], g.points[b]));
+                    }
+                }
+                if (d < minDiameter) {
+                    minDiameter = d;
+                    bestI = i; bestJ = j;
+                }
+            }
+        }
+
+        if (bestI != -1) {
+            // Gộp bestJ vào bestI, sau đó xóa bestJ
+            for (uint32_t node : hubs[bestJ]) {
+                if (std::find(hubs[bestI].begin(), hubs[bestI].end(), node) == hubs[bestI].end())
+                    hubs[bestI].push_back(node);
+            }
+            hubs.erase(hubs.begin() + bestJ);
+        }
+        else break;
+    }
+    return hubs;
+}
+
+std::vector<std::vector<uint32_t>> GraphBasedSoft2CliqueCluster(const Graph& g, uint32_t k) {
+    std::vector<std::vector<uint32_t>> hubs = findInitialHubs(g);
+    hubs = mergeHubsToK(hubs, g, k);
+    return hubs;
+}
+
+Graph BuildGraphFromHubs(const std::vector<std::vector<uint32_t>>& hubs, uint32_t n, uint32_t firstHubIndex) {
+    Graph g;
+    g.n = n;
+    g.points = {};
+    g.adjacent.resize(n);
+    for (auto hub : hubs) {
+        g.adjacent[firstHubIndex] = hub;
+        for (auto node : hub) {
+            g.adjacent[node].push_back(firstHubIndex);
+        }
+        firstHubIndex++;
+    }
+
+    return g;
+}
+
 /**
- * Gabriel Graph - O(n^3)
+ * Gabriel Graph
  * Một cạnh (i, j) tồn tại nếu đường tròn nhận đoạn thẳng ij làm đường kính không chứa bất kỳ điểm s nào khác bên trong.
  * dist(i, j)^2 <= dist(i, s)^2 + dist(j, s)^2 với mọi s.
  */
@@ -57,7 +221,6 @@ Graph BuildGabrielGraph(std::vector<point2D>& points) {
     return g;
 }
 
-// --- Hàm tính đường kính (Diameter) dựa trên số bước nhảy ---
 double calculateDiameter(const Graph& g) {
     uint32_t n = g.n;
     if (n <= 1) return 0.0;
@@ -125,6 +288,23 @@ Graph BuildOneCenterGraph(const std::vector<point2D>& points) {
 }
 
 /**
+ * 1-CENTER (STAR GRAPH) with specified center index
+ */
+Graph BuildOneCenterGraph(const uint32_t n, const uint32_t c) {
+    Graph g; g.n = n;
+    g.points = {};
+    g.adjacent.resize(n);
+
+    for (uint32_t i = 0; i < n; ++i) {
+        if (i != c) {
+            g.adjacent[c].push_back(i);
+            g.adjacent[i].push_back(c);
+        }
+    }
+    return g;
+}
+
+/**
  *  2-CENTER (DOUBLE STAR)
  */
 Graph BuildTwoCenterGraph(const std::vector<point2D>& points) {
@@ -172,5 +352,19 @@ Graph BuildTwoCenterGraph(const std::vector<point2D>& points) {
         }
     }
     return best_graph;
+}
+
+Graph BuildFullyConnectedGraph(const uint32_t n) {
+    Graph g; g.n = n;
+    g.points = {};
+    g.adjacent.resize(n);
+
+    for (uint32_t i = 0; i < n; ++i) {
+        for (uint32_t j = i + 1; j < n; ++j) {
+            g.adjacent[i].push_back(j);
+            g.adjacent[j].push_back(i);
+        }
+    }
+    return g;
 }
 #endif // GRAPH_HELPER_H

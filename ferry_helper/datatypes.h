@@ -41,6 +41,14 @@ inline point2D midPoint(const point2D& a, const point2D& b) {
 
 typedef std::pair<point2D, point2D> line2D;
 
+struct waypoint2D {
+    point2D pos;
+    uint32_t tag; // id of ground node or ferry (if this is a rendezvous wp)
+    bool isRendezvous; // is this waypoint a rendezvous, a waypoint that two uav meet ?
+    std::vector<uint32_t> tagList; // for merging waypoints
+};
+
+typedef std::vector<waypoint2D> FerryRoute;
 
 struct color {
     int r;

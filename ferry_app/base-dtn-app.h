@@ -372,7 +372,7 @@ void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     FerryRouteHeader fRouteHeader;
     fRouteHeader.SetGroup(m_groupId);
     fRouteHeader.SetMode(m_mode);
-    if (config.ALGORITHM_NAME != "DRC") {
+    if (algoConfig.sendRouteInHello) {
         auto routeIp = this->GetServingNodeRoute();
         auto routeArrival = this->GetServingExpectedArrival();
         uint32_t count = routeIp.size();

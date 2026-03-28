@@ -51,7 +51,7 @@ struct TSPSolution {
 /* ================================
    TSP COST
 ================================ */
-inline double ComputeCost(const std::vector<uint32_t>& order,
+inline double ComputeTSPCost(const std::vector<uint32_t>& order,
                           const std::vector<point2D>& points) {
     double cost = 0.0;
     for (size_t i = 0; i < order.size() - 1; ++i) {
@@ -138,7 +138,7 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
     for (TSPSolution& sol : population) {
         sol.order = included;
         std::shuffle(sol.order.begin(), sol.order.end(), gen);
-        sol.cost = ComputeCost(sol.order, points);
+        sol.cost = ComputeTSPCost(sol.order, points);
     }
     std::sort(population.begin(), population.end());
 
@@ -153,7 +153,7 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
             TSPSolution sol;
             sol.order = OrderCrossover(population[id1].order, population[id2].order, gen);
             SwapMutation(sol.order, gen, MUT_PROB);
-            sol.cost = ComputeCost(sol.order, points);
+            sol.cost = ComputeTSPCost(sol.order, points);
             new_population.push_back(sol);
         }
         std::swap(population, new_population); // faster than assignment
@@ -166,20 +166,71 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
     return std::min_element(population.begin(), population.end())->order;
 }
 
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::vector<uint32_t>& included, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+    NS_LOG_UNCOND("TSP Classic GA");
+    uint32_t POP_SIZE = population_size; // population size
+    uint32_t MAX_GEN = max_generation; // max number of generation
+    const uint32_t GEN_LOG_ITER = 1000;
+    const double MUT_PROB = 0.2;
+    const uint32_t ELITE = 20;
+
+    uint32_t n = points.size();
+    if (n == 0) { // avoid crash
+        return {};
+    }
+    std::mt19937 gen(1337); //! MAGIC NUMBER - Fixed seed
+
+    if (included.size() <= 3) {
+        return included;
+    }
+
+    std::vector<TSPSolution> population(POP_SIZE);
+    for (TSPSolution& sol : population) {
+        sol.order = included;
+        std::shuffle(sol.order.begin(), sol.order.end(), gen);
+        sol.cost = ComputeTSPCost(sol.order, points);
+    }
+    std::sort(population.begin(), population.end());
+
+    for (uint32_t generation = 0; generation <= MAX_GEN; ++generation) {
+        std::vector<TSPSolution> new_population;
+        for (uint32_t i = 0; i < ELITE; ++i) {
+            new_population.push_back(population[i]);
+        }
+        while (new_population.size() < POP_SIZE) {
+            int id1 = rand() % POP_SIZE;
+            int id2 = rand() % POP_SIZE;
+            TSPSolution sol;
+            sol.order = OrderCrossover(population[id1].order, population[id2].order, gen);
+            SwapMutation(sol.order, gen, MUT_PROB);
+            sol.cost = ComputeTSPCost(sol.order, points);
+            new_population.push_back(sol);
+        }
+        std::swap(population, new_population); // faster than assignment
+        std::sort(population.begin(), population.end());
+        if (generation % GEN_LOG_ITER == 0) {
+            NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
+        }
+    }
+
+    return std::min_element(population.begin(), population.end())->order;
+}
+
+
 std::vector<uint32_t> TSPTwoOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
     if (baseOrder.size() <= 1) {
         return baseOrder;
     }
 
     std::vector<uint32_t> order = baseOrder;
-    double bestCost = ComputeCost(order, points);
+    double bestCost = ComputeTSPCost(order, points);
     bool improve = true;
     while (improve) {
         improve = false;
         for (size_t i = 0; i < order.size() - 1; ++i) {
             for (size_t j = i + 1; j < order.size(); ++j) {
                 std::reverse(order.begin() + i, order.begin() + j + 1);
-                double newCost = ComputeCost(order, points);
+                double newCost = ComputeTSPCost(order, points);
                 if (newCost < bestCost) {
                     bestCost = newCost;
                     improve = true;
@@ -197,6 +248,80 @@ std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::s
     std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx, population_size, max_generation);
     order = TSPTwoOptOptimize(points, order);
     return order;
+}
+
+std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& included, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+    std::vector<uint32_t> order = TSPClassicGA(points, included, population_size, max_generation);
+    order = TSPTwoOptOptimize(points, order);
+    return order;
+}
+
+FerryRoute TSPTwoOptHelper(FerryRoute route) {
+    uint32_t n = route.size();
+    if (n <= 3) return route;
+    double currentCost = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        point2D A = route[i].pos;
+        point2D B = route[(i + 1) % n].pos;
+        currentCost += dist(A, B);
+    }
+    bool improved = true;
+    while (improved) {
+        improved = false;
+        for (uint32_t i = 0; i < n - 2; i++) {
+            for (uint32_t j = i + 2; j < n; j++) {
+                // std::reverse(route.begin() + i + 1, route.begin() + j + 1);
+                double newCost = currentCost;
+                point2D A = route[i].pos;
+                point2D B = route[(i + 1) % n].pos;
+                point2D C = route[j].pos;
+                point2D D = route[(j + 1) % n].pos;
+                newCost += dist(A, C) + dist(B, D);
+                newCost -= dist(A, B) + dist(C, D);
+                if (newCost < currentCost - 0.01) {
+                    std::reverse(route.begin() + i + 1, route.begin() + j + 1);
+                    currentCost = newCost;
+                    improved = true;
+                }
+            }
+        }
+    }
+    return route;
+}
+#pragma endregion
+
+#pragma region waypoint Route Helper
+FerryRoute TwoOpt(FerryRoute route) {
+    uint32_t n = route.size();
+    if (n <= 3) return route;
+    double currentCost = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        point2D A = route[i].pos;
+        point2D B = route[(i + 1) % n].pos;
+        currentCost += dist(A, B);
+    }
+    bool improved = true;
+    while (improved) {
+        improved = false;
+        for (uint32_t i = 0; i < n - 2; i++) {
+            for (uint32_t j = i + 2; j < n; j++) {
+                // std::reverse(route.begin() + i + 1, route.begin() + j + 1);
+                double newCost = currentCost;
+                point2D A = route[i].pos;
+                point2D B = route[(i + 1) % n].pos;
+                point2D C = route[j].pos;
+                point2D D = route[(j + 1) % n].pos;
+                newCost += dist(A, C) + dist(B, D);
+                newCost -= dist(A, B) + dist(C, D);
+                if (newCost < currentCost - 0.01) {
+                    std::reverse(route.begin() + i + 1, route.begin() + j + 1);
+                    currentCost = newCost;
+                    improved = true;
+                }
+            }
+        }
+    }
+    return route;
 }
 #pragma endregion
 

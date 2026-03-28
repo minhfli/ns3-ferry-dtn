@@ -41,7 +41,9 @@ const std::string RPDLAS_REROUTE_OPTIMIZED = "RPDLAS_REROUTE_OPTIMIZED";
 const std::string MRDLAS_ONE_ROUTE_EACH = "MRDLAS_ONE_ROUTE_EACH";
 const std::string MRDLAS_ONE_ROUTE_2_FERRY = "MRDLAS_ONE_ROUTE_2_FERRY";
 
-
+const std::string DRC_ONE_CENTER = "DRC_ONE_CENTER";
+const std::string DRC_TWO_CENTER = "DRC_TWO_CENTER";
+const std::string DRC_GABRIEL = "DRC_GABRIEL";
 
 struct Config {
     int randSeed = 1337;
@@ -115,11 +117,19 @@ struct Config {
     // waypoint selection config, for Tabaf and its derived algorithm
     std::string waypointSelectMode = DETERMINISTIC;
 
-    uint32_t DRC_refineIterations = 10;
+    std::string DRC_graphMode = DRC_ONE_CENTER;
+    uint32_t DRC_refineIterations = 100;
     uint32_t DRC_sampleCount = 1000;
-    double DRC_lastContactTimeout = 10000000; // 12 sec
+    double DRC_lastContactTimeout = 5;
+
+    uint32_t HUB_nHubs = 1;
 
 } config;
+
+struct AlgorithmSpecificSettings {
+    bool sendRouteInHello = true; // always send route Header in Hello message if not disabled by specific algorithm
+
+} algoConfig;
 
 
 
@@ -174,6 +184,8 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("RPDLAS_operationMode", "RPDLAS operation mode", config.RPDLAS_operationMode);
     cmd.AddValue("RPDLAS_pruneMode", "RPDLAS prune mode", config.RPDLAS_pruneMode);
     cmd.AddValue("MRDLAS_routeMode", "MRDLAS route mode", config.MRDLAS_routeMode);
+    cmd.AddValue("DRC_graphMode", "DRC graph mode", config.DRC_graphMode);
+    cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
 
     cmd.Parse(argc, argv);
     return;

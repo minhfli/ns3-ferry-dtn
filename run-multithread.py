@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "202603011_5pm"
+BATCH = "20260326_10pm"
 BATCH_ID = "conf4315p64" #! TEMPORARY for rerun
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -28,7 +28,7 @@ base_params = {
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
-    "simTime": 11100,
+    "simTime": 10800,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
@@ -44,25 +44,25 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON", "SR_PIGEON_V2", "RPDLAS", "MRDLAS"],
-    "name": [ "MRDLAS"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON_V2", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
+    "name": [ "CHUB"],
 
     "nGrounds": [30],
-    # "nFerrys": [ 7, 10],
-    # "nFerrys": [ 1, 3, 5, 7, 10, 12, 15],
+    # "nFerrys": [7, 10, 15],
     "nFerrys": [ 3, 5, 7, 10, 12, 15],
 
     "groundBufferSize": [1000],
-    # "ferryBufferSize": [50, 100, 150, 200, 500],
+    # "ferryBufferSize": [25, 50, 75, 100, 150, 500],
     "ferryBufferSize": [500],
 
-    # "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
-    "bundleTTL": [ 300000000, 450000000, 600000000, 900000000], 
+    "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
+    # "bundleTTL": [600000000], 
+    # "bundleTTL": [  900000000], 
 
     "ferryComm": [False, True],
 }
 
-FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS"] # only run ferry comm = true with these algorithm
+FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
     "PIGEON": {
@@ -90,18 +90,18 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        "DWS": {
-            "waypointSelectMode": "DETERMINISTIC",
-        },
+        # "DWS": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        # },
     },
     "MRDLAS": {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        "Shared": {
-            "waypointSelectMode": "PROBABILISTIC",
-            "MRDLAS_routeMode": "MRDLAS_ONE_ROUTE_2_FERRY"
-        },
+        # "Shared": {
+        #     "waypointSelectMode": "PROBABILISTIC",
+        #     "MRDLAS_routeMode": "MRDLAS_ONE_ROUTE_2_FERRY"
+        # },
     },
     "TABADLA": {
         # "default": { # previous run show that this is not good
@@ -192,7 +192,25 @@ algo_variants= {
         #     "waypointSelectMode": "DETERMINISTIC",
         # },
     },
-
+    "DRC": {
+        "default": {
+            "warmupTime": 3000,
+        },   
+        # "2Center":{
+        #     "warmupTime": 3000,
+        #     "DRC_graphMode" : "DRC_TWO_CENTER",
+        # }
+    },
+    "HUB":{
+        "default": {
+            "warmupTime": 500,
+        },   
+    },
+    "VHUB":{
+        "default": {
+            "warmupTime": 500,
+        },   
+    }
 }
 
 N_SEEDS = 5
