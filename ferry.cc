@@ -15,6 +15,13 @@
 #include "ns3/wave-module.h" 
 #include "ns3/point-to-point-module.h"
 
+#define NS_LOG_UNCOND(expr) \
+    do { \
+        std::ostringstream _oss; \
+        _oss << expr; \
+        std::cout << _oss.str() << '\n'; \
+    } while(0)
+
 #include "ferry_helper/global.h"
 #include "ferry_helper/config.h"
 #include "ferry_helper/report.h"
@@ -271,7 +278,7 @@ int main(int argc, char* argv[]) {
 
     // Generate ground node positions
     double areaPadding = config.areaPadding; // padding to avoid node on edge of the map
-    double rangePadding = config.commRange * 2.0 + 20; // padding tp avoid node near communication range
+    double rangePadding = config.commRange * 2.0; // padding tp avoid node near communication range
     groundNodePos =
         PoissonDisk_RandomSample(config.nGrounds, rangePadding, config.areaWidth - areaPadding * 2);
 

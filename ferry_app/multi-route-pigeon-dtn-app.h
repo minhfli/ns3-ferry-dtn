@@ -18,7 +18,7 @@ namespace MRDLAS {
         ferryRoutes.resize(config.nGrounds + 1);
 
         for (uint32_t g = 0; g < config.nGrounds; g++) {
-            auto route = TSPHelper(
+            auto route = TSPHelperNoTwoOpt(
                 groundNodePos,
                 (std::set<uint32_t>) {
                 g

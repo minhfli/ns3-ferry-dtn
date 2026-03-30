@@ -298,6 +298,8 @@ class DividedRouteCouplingDtnApp : public BaseDtnApp {
     virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
 
     private:
+
+    double m_waitTime = 0;
     uint32_t m_nextWaypointIndex;
     int m_direction;
     DRC::DRCRoute m_ferryRoute;
@@ -396,10 +398,17 @@ void DividedRouteCouplingDtnApp::ScheduleNextWaypoint() {
             }
         }
         if (wait) {
+            m_waitTime += 2.0;
+            if (m_waitTime > config.DRC_maxWaitTime) {
+                wait = false;
+            }
+        }
+        if (wait) {
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
             Simulator::Schedule(Seconds(2.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
             return;
         }
+        m_waitTime = 0;
         m_metParter.clear(); // cleanup after leaving this waypoint
     }
     m_reachedFirstWaypoint = true;

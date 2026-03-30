@@ -24,18 +24,29 @@ namespace CHUB {
 
 
     ClusterSolution GetCluster() {
-        m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys, 200, 5000);
+        if (config.CHUB_virtualHub) {
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys, 200, 5000);
+        }
+        else { // use 1 uav as real hub
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys - 1, 200, 5000);
+            m_clusters.push_back({ });
+        }
         Clustering::BMTC_ComputeCost(m_clusters, groundNodePos, &m_hubPos);
         return m_clusters;
     }
 
 
     void FerrySetup() {
+        algoConfig.sendRouteInHello = false;
         NS_LOG_UNCOND("CHUB: Setting up routes..");
         m_routes.resize(config.nFerrys);
         m_routeLength = std::vector<double>(config.nFerrys, 0);
         for (uint32_t i = 0; i < config.nFerrys; i++) {
-            NS_ASSERT_MSG(m_clusters[i].size() > 0, "FATAL: CHUB edge case - Empty cluster");
+            if (m_clusters[i].size() == 0) { // this uav is used as hub
+                m_routes[i].push_back({ m_hubPos, 0, true });
+                continue;
+            }
+
             m_clusters[i] = TSPHelper(groundNodePos, m_clusters[i], 100, 2000);
 
             double minInsertCost = std::numeric_limits<double>::max();
@@ -58,9 +69,21 @@ namespace CHUB {
             m_routes[i] = TwoOpt(m_routes[i]);
         }
         NS_LOG_UNCOND("CHUB: calculating connection distance..");
-        m_groupDistance = std::vector<std::vector<uint32_t>>(config.nFerrys, std::vector<uint32_t>(config.nFerrys, 1));
-        for (uint32_t i = 0; i < config.nFerrys; i++) {
-            m_groupDistance[i][i] = 0;
+        if (config.CHUB_virtualHub) {
+            m_groupDistance = std::vector<std::vector<uint32_t>>(config.nFerrys, std::vector<uint32_t>(config.nFerrys, 1));
+            for (uint32_t i = 0; i < config.nFerrys; i++) {
+                m_groupDistance[i][i] = 0;
+            }
+        }
+        else { // use 1 uav as real hub
+            m_groupDistance = std::vector<std::vector<uint32_t>>(config.nFerrys, std::vector<uint32_t>(config.nFerrys, 2));
+            for (uint32_t i = 0; i < config.nFerrys; i++) {
+                m_groupDistance[i][config.nFerrys - 1] = 1; // the hub uav distance to orther hubs is always 1
+                m_groupDistance[config.nFerrys - 1][i] = 1; // the hub uav distance to orther hubs is always 1
+            }
+            for (uint32_t i = 0; i < config.nFerrys - 1; i++) {
+                m_groupDistance[i][i] = 0; // the distance to itself is always 0
+            }
         }
 
         NS_LOG_UNCOND("CHUB: calculating route length..");
@@ -69,7 +92,6 @@ namespace CHUB {
                 m_routeLength[i] += dist(m_routes[i][j].pos, m_routes[i][(j + 1) % m_routes[i].size()].pos);
             }
         }
-
 
     }
 
@@ -165,7 +187,8 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         }
     }
 
-    if (m_reachedFirstWaypoint && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+    if (config.CHUB_virtualHub && m_reachedFirstWaypoint && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+        // Chỉ wait với chế độ virtual hub
         m_reachedFirstWaypoint = true;
         auto currentWaypoint = m_ferryRoute[m_nextWaypointIndex];
         bool wait = false;

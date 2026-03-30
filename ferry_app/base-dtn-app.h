@@ -91,8 +91,9 @@ class BaseDtnApp : public Application {
     virtual std::vector<uint32_t> GetServingNodeRoute() = 0;
     // Lấy route của ferry, dưới dạng waypoint, mặc định trả về cá vị trí của node trong node route
     virtual std::vector<point2D> GetServingWaypointRoute();
+    // Lấy route của ferry, dưới dạng expected arrival
+    virtual std::vector<uint64_t> GetServingExpectedArrival();
 
-    std::vector<uint64_t> GetServingExpectedArrival();
     std::map<uint32_t, uint32_t> GetBundleCount() const;
     // Lấy danh sách deadline của từng node index
     std::vector<std::vector<double>> GetDeadlines();

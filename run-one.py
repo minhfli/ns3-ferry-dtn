@@ -8,24 +8,24 @@ params = {
     "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug15", # run name for log file
+    "run": "debug", # run name for log file
     "simTime": 7200,
-    "warmupTime": 1000,
+    "warmupTime": 500,
     #* some algorithm specific config
     "DRC_graphMode": "DRC_GABRIEL",
     "waypointSelectMode" :"PROBABILISTIC",
-    "HUB_nHubs": 2,
+    "HUB_nHubs": 1,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
-    "nGrounds": 30,
-    "nFerrys": 15,
+    "nGrounds": 45,
+    "nFerrys": 10,
     "ferrySpeed": 12,
-    "groundBufferSize": 50,
+    "groundBufferSize": 1000,
     "ferryBufferSize": 500,
     "minGenRate": 10.0, # sec/packet
-    "maxGenRate": 20.0, # sec
+    "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
@@ -35,7 +35,7 @@ params = {
 
 def build_cmd(program, params):
     args = " ".join(f"--{k}={v}" for k, v in params.items())
-    return f'./waf --run "{program} {args}" '
+    return f'./waf --run "{program} {args}"'
 
 def run_command(cmd):
     print(f"\n--- Running: {cmd} ---")

@@ -58,7 +58,7 @@ struct Config {
     double commRange = 150.0; // meters
     double ferryHeight = 50.0; // meters
     double areaWidth = 4000; // meters
-    double areaPadding = 100; // padding to avoid node on edge of the map
+    double areaPadding = 0; // padding to avoid node on edge of the map
     uint32_t nGrounds = 25;
     uint32_t nFerrys = 5;
 
@@ -118,11 +118,14 @@ struct Config {
     std::string waypointSelectMode = DETERMINISTIC;
 
     std::string DRC_graphMode = DRC_ONE_CENTER;
-    uint32_t DRC_refineIterations = 100;
+    uint32_t DRC_refineIterations = 1000;
     uint32_t DRC_sampleCount = 1000;
-    double DRC_lastContactTimeout = 5;
+    double DRC_lastContactTimeout = 10;
+    double DRC_maxWaitTime = 900; // 900 sec
 
     uint32_t HUB_nHubs = 1;
+
+    bool CHUB_virtualHub = true;
 
 } config;
 

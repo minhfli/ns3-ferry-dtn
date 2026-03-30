@@ -23,7 +23,8 @@ namespace VHUB {
     std::vector<double> m_routeLength;
 
     point2D RefineHubPosition(point2D basePos, std::vector<FerryRoute> refineRoutes, double learningRate, uint32_t iteration) {
-        while (iteration--) {
+        while (iteration > 0) {
+            iteration--;
             uint32_t furthestRouteIdx = 0;
             double maxDist = 0;
             for (uint32_t i = 0; i < refineRoutes.size(); i++) {
@@ -75,12 +76,13 @@ namespace VHUB {
 
         NS_LOG_UNCOND("VHUB: Calculating HUB position..");
         point2D hubPos = getCentroid(centroid);
-        RefineHubPosition(hubPos, m_routes, 0.05, 10);
-        RefineHubPosition(hubPos, m_routes, 0.02, 20);
+        RefineHubPosition(hubPos, m_routes, 0.1, 10);
+        RefineHubPosition(hubPos, m_routes, 0.05, 50);
+        RefineHubPosition(hubPos, m_routes, 0.02, 50);
         RefineHubPosition(hubPos, m_routes, 0.01, 50);
-        RefineHubPosition(hubPos, m_routes, 0.005, 50);
-        RefineHubPosition(hubPos, m_routes, 0.002, 50);
-        RefineHubPosition(hubPos, m_routes, 0.001, 50);
+        RefineHubPosition(hubPos, m_routes, 0.005, 100);
+        RefineHubPosition(hubPos, m_routes, 0.002, 100);
+        RefineHubPosition(hubPos, m_routes, 0.001, 100);
 
         for (uint32_t f = 0; f < config.nFerrys; f++) {
             auto& route = m_routes[f];

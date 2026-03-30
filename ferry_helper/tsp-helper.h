@@ -249,6 +249,10 @@ std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::s
     order = TSPTwoOptOptimize(points, order);
     return order;
 }
+std::vector<uint32_t> TSPHelperNoTwoOpt(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+    std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx, population_size, max_generation);
+    return order;
+}
 
 std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::vector<uint32_t>& included, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
     std::vector<uint32_t> order = TSPClassicGA(points, included, population_size, max_generation);

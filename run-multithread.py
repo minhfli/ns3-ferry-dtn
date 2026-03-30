@@ -13,8 +13,8 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260326_10pm"
-BATCH_ID = "conf4315p64" #! TEMPORARY for rerun
+BATCH = "20260329"
+BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
 
@@ -24,17 +24,17 @@ BATCH_ID = "conf4315p64" #! TEMPORARY for rerun
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
-    "simTime": 10800,
+    "simTime": 14400,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "ferrySpeed": 12,
     "minGenRate": 10.0, # sec/packet
-    "maxGenRate": 20.0, # sec
+    "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
@@ -44,25 +44,27 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "SR_PIGEON_V2", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
-    "name": [ "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
+    "name": ["DRC", "VHUB"],
+    # "name": [ "HUB"],
 
-    "nGrounds": [30],
+    "nGrounds": [45],
     # "nFerrys": [7, 10, 15],
-    "nFerrys": [ 3, 5, 7, 10, 12, 15],
+    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    "nFerrys": [ 12, 15, 20],
 
     "groundBufferSize": [1000],
     # "ferryBufferSize": [25, 50, 75, 100, 150, 500],
     "ferryBufferSize": [500],
 
-    "bundleTTL": [ 450000000, 600000000, 900000000], # 7.5min, 10min, 15min
+    "bundleTTL": [ 450000000, 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
     # "bundleTTL": [600000000], 
     # "bundleTTL": [  900000000], 
 
     "ferryComm": [False, True],
 }
 
-FC_only = ["SIRA", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB"] # only run ferry comm = true with these algorithm
+FC_only = ["SIRA", "PIGEON", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
     "PIGEON": {
@@ -82,26 +84,16 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        # "DWS": {
-        #     "waypointSelectMode": "DETERMINISTIC",
-        # },
     },
     "SR_PIGEON_V2": {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        # "DWS": {
-        #     "waypointSelectMode": "DETERMINISTIC",
-        # },
     },
     "MRDLAS": {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
         },  
-        # "Shared": {
-        #     "waypointSelectMode": "PROBABILISTIC",
-        #     "MRDLAS_routeMode": "MRDLAS_ONE_ROUTE_2_FERRY"
-        # },
     },
     "TABADLA": {
         # "default": { # previous run show that this is not good
@@ -196,10 +188,6 @@ algo_variants= {
         "default": {
             "warmupTime": 3000,
         },   
-        # "2Center":{
-        #     "warmupTime": 3000,
-        #     "DRC_graphMode" : "DRC_TWO_CENTER",
-        # }
     },
     "HUB":{
         "default": {
@@ -210,11 +198,16 @@ algo_variants= {
         "default": {
             "warmupTime": 500,
         },   
-    }
+    },
+    "CHUB":{
+        "default": {
+            "warmupTime": 500,
+        },   
+    },
 }
 
 N_SEEDS = 5
-MAX_WORKERS = 8
+MAX_WORKERS = 7
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling

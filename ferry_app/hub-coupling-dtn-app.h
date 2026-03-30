@@ -24,8 +24,8 @@ namespace HUB {
     std::vector<double> m_routeLength;
     std::vector<point2D> m_hubPos;
 
-    point2D RefineHubPosition(double learningRate, uint32_t iteration) {
-        while (iteration--) {
+    point2D RefineHubPosition(double learningRate, int iteration) {
+        while (iteration-- > 0) {
             for (uint32_t h = 0; h < m_hubs.size(); h++) {
                 point2D& hPos = m_hubPos[h];
 
@@ -55,15 +55,11 @@ namespace HUB {
                         }
                     }
                 }
-                // Lấy center của route dài nhất
-                point2D routeCenter = { 0 ,0 };
-                for (auto wp : m_routes[maxRouteIndex]) {
-                    routeCenter = routeCenter + wp.pos;
-                }
-                routeCenter = routeCenter / m_routes[maxRouteIndex].size();
+                // Lấy ngẫu nhiên 1 nút của route dài nhất
+                point2D target = m_routes[maxRouteIndex][rand() % m_routes[maxRouteIndex].size()].pos;
 
                 // cập nhật hubPos
-                hPos = hPos + (routeCenter - hPos) * learningRate;
+                hPos = hPos + (target - hPos) * learningRate;
                 // thêm lại hPos vào các route
                 for (auto i : m_hubs[h]) {
                     FerryRoute& route = m_routes[i];
@@ -94,10 +90,10 @@ namespace HUB {
         NS_ASSERT_MSG(m_hubs.size() == config.HUB_nHubs, "FATAL: HUB - edge case not implemented");
 
         NS_LOG_UNCOND("HUB: Calculate initial routes..");
-        m_routes.resize(config.nFerrys);
-        m_routeLength.resize(config.nFerrys);
+        m_routes = std::vector<FerryRoute>(config.nFerrys, FerryRoute());
+        m_routeLength = std::vector<double>(config.nFerrys, 0);
         for (uint32_t f = 0; f < config.nFerrys - config.HUB_nHubs; f++) {
-            auto route = TSPHelper(groundNodePos, DataStructureHelper::GetReversedSet(clusters[f], groundNodePos.size()), 100, 2000);
+            auto route = TSPHelper(groundNodePos, clusters[f], 100, 2000);
             for (uint32_t i : route) {
                 m_routes[f].push_back({ groundNodePos[i], i, false });
             }
@@ -123,11 +119,22 @@ namespace HUB {
                 route = TwoOpt(route);
             }
         }
-        RefineHubPosition(0.1, 50);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #1 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+        RefineHubPosition(0.1, 10);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #2 " << m_hubPos[0].x << " " << m_hubPos[0].y);
         RefineHubPosition(0.05, 50);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #3 " << m_hubPos[0].x << " " << m_hubPos[0].y);
         RefineHubPosition(0.02, 50);
-        RefineHubPosition(0.01, 100);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #4 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+        RefineHubPosition(0.01, 50);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #5 " << m_hubPos[0].x << " " << m_hubPos[0].y);
         RefineHubPosition(0.005, 100);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #6 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+        RefineHubPosition(0.002, 100);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #7 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+        RefineHubPosition(0.001, 100);
+        NS_LOG_UNCOND("HUB: Refine HUB position.. #8 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+
         for (uint32_t h = 0; h < config.HUB_nHubs; h++) { // route setup for hubs
             FerryRoute route;
             route.push_back({ m_hubPos[h], h, true });
