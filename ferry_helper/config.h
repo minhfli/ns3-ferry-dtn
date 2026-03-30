@@ -63,7 +63,7 @@ struct Config {
     uint32_t nFerrys = 5;
 
     // node config
-    double beaconInterval = 5.0;    // seconds
+    double beaconInterval = 4.0;    // seconds
     double beaconRandomnes = 1.0; // seconds
     uint64_t contactTimeout = 3000000; // 3 seconds, time between last contact of 2 node that it accept new beacon and start new protocol session
     uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds

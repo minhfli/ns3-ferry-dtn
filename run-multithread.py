@@ -45,7 +45,7 @@ base_params = {
 
 param_grid = { # change or set to default grid for custom run
     # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
-    "name": ["DRC", "VHUB"],
+    "name": ["DRC", "VHUB", "CHUB"],
     # "name": [ "HUB"],
 
     "nGrounds": [45],

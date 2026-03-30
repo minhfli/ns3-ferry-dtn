@@ -708,8 +708,10 @@ void BaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
 
     if (m_neighbor.find(source) != m_neighbor.end() &&  // not a new neighbor
         currentTime - m_neighbor[source].lastContactTime < config.contactTimeout) // still in contact
+    {
+        m_neighbor[source].lastContactTime = currentTime; // không bắt đầu trao đổi, nhưng vẫn cập nhật last contact time
         return;
-
+    }
     m_neighbor[source].lastContactTime = currentTime;
 
     OnGroundReceiveBeacon(sourceIp, packet);

@@ -22,13 +22,16 @@ namespace VHUB {
     std::vector<FerryRoute> m_routes;
     std::vector<double> m_routeLength;
 
-    point2D RefineHubPosition(point2D basePos, std::vector<FerryRoute> refineRoutes, double learningRate, uint32_t iteration) {
-        while (iteration > 0) {
-            iteration--;
+    point2D VhubRefineHubPosition(point2D basePos, const std::vector<FerryRoute>& refineRoutes, double learningRate, const int iteration) {
+        for (int iter = 0; iter < iteration; iter++) {
+            NS_LOG_UNCOND(iter);
+        }
+        if (refineRoutes.size() == 0) return basePos;
+        for (int iter = 0; iter < iteration; iter++) {
             uint32_t furthestRouteIdx = 0;
             double maxDist = 0;
             for (uint32_t i = 0; i < refineRoutes.size(); i++) {
-                FerryRoute route = refineRoutes[i];
+                const FerryRoute& route = refineRoutes[i];
                 if (route.size() == 0) continue;
                 double len = 0;
                 double minInsertCost = std::numeric_limits<double>::max();
@@ -44,14 +47,16 @@ namespace VHUB {
                     furthestRouteIdx = i;
                 }
             }
-            FerryRoute route = refineRoutes[furthestRouteIdx];
+            const FerryRoute& route = refineRoutes[furthestRouteIdx];
             point2D routeCentroid = { 0 ,0 };
             for (uint32_t j = 0; j < route.size(); j++) {
                 routeCentroid = routeCentroid + route[j].pos;
             }
-            routeCentroid = routeCentroid / route.size();
-            basePos = basePos * (1 - learningRate) + routeCentroid * learningRate;
+            NS_ASSERT_MSG(route.size() > 0, "Weird error");
+            routeCentroid = routeCentroid / (double)route.size();
+            basePos = basePos * (1.0 - learningRate) + routeCentroid * learningRate;
         }
+        return basePos;
     }
 
     void FerrySetup(const std::vector<std::vector<uint32_t>>& clusters) {
@@ -72,17 +77,21 @@ namespace VHUB {
             for (uint32_t i : route) {
                 m_routes[f].push_back({ groundNodePos[i], i, false });
             }
+            NS_LOG_UNCOND("Route for ferry " << f);
+            for (auto wp : m_routes[f]) {
+                NS_LOG_UNCOND(wp.tag);
+            }
         }
 
         NS_LOG_UNCOND("VHUB: Calculating HUB position..");
         point2D hubPos = getCentroid(centroid);
-        RefineHubPosition(hubPos, m_routes, 0.1, 10);
-        RefineHubPosition(hubPos, m_routes, 0.05, 50);
-        RefineHubPosition(hubPos, m_routes, 0.02, 50);
-        RefineHubPosition(hubPos, m_routes, 0.01, 50);
-        RefineHubPosition(hubPos, m_routes, 0.005, 100);
-        RefineHubPosition(hubPos, m_routes, 0.002, 100);
-        RefineHubPosition(hubPos, m_routes, 0.001, 100);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.1, 10);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.05, 50);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.02, 50);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.01, 50);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.005, 100);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.002, 100);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.001, 100);
 
         for (uint32_t f = 0; f < config.nFerrys; f++) {
             auto& route = m_routes[f];

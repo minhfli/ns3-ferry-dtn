@@ -24,7 +24,7 @@ namespace HUB {
     std::vector<double> m_routeLength;
     std::vector<point2D> m_hubPos;
 
-    point2D RefineHubPosition(double learningRate, int iteration) {
+    void RefineHubPosition(double learningRate, int iteration) {
         while (iteration-- > 0) {
             for (uint32_t h = 0; h < m_hubs.size(); h++) {
                 point2D& hPos = m_hubPos[h];

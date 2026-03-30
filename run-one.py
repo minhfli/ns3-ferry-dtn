@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "CHUB", # algorithm name
+    "name": "HUB", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
