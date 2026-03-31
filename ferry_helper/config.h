@@ -69,7 +69,8 @@ struct Config {
     uint32_t jitterAmount = 500; // 0.5 - 1.5 milisecconds
 
     // mobility
-    double ferrySpeed = 15.0;      // m/s
+    double ferrySpeed = 12.0;      // m/s
+    double hoverTime = 10.0; // sec, everytime an UAV reach a waypoint, it will hover for this time 
     /**
     * if ferry node is scheduled to hover (stay at the same place), how long does it wait to reschedule it mobility ?
     * this is to avoid too frequently scheduling, with especially with pigeon dtn app
@@ -166,6 +167,7 @@ void ParseConfig(int argc, char* argv[]) {
     // cmd.AddValue("beaconRandomnes", "Beacon randomness", config.beaconRandomnes);
     // cmd.AddValue("jitterAmount", "Jitter amount", config.jitterAmount);
     cmd.AddValue("ferrySpeed", "Ferry speed", config.ferrySpeed);
+    cmd.AddValue("hoverTime", "Hover time", config.hoverTime);
     cmd.AddValue("groundBufferSize", "Ground buffer size", config.groundBufferSize);
     cmd.AddValue("ferryBufferSize", "Ferry buffer size", config.ferryBufferSize);
     // cmd.AddValue("bundleGenRate", "Bundle generation rate", config.bundleGenRate);
@@ -189,6 +191,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("MRDLAS_routeMode", "MRDLAS route mode", config.MRDLAS_routeMode);
     cmd.AddValue("DRC_graphMode", "DRC graph mode", config.DRC_graphMode);
     cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
+    cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);
 
     cmd.Parse(argc, argv);
     return;

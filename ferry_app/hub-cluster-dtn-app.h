@@ -25,10 +25,10 @@ namespace CHUB {
 
     ClusterSolution GetCluster() {
         if (config.CHUB_virtualHub) {
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys, 200, 5000);
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys, 200, 7000);
         }
         else { // use 1 uav as real hub
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys - 1, 200, 5000);
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys - 1, 200, 7000);
             m_clusters.push_back({ });
         }
         Clustering::BMTC_ComputeCost(m_clusters, groundNodePos, &m_hubPos);
@@ -81,7 +81,7 @@ namespace CHUB {
                 m_groupDistance[i][config.nFerrys - 1] = 1; // the hub uav distance to orther hubs is always 1
                 m_groupDistance[config.nFerrys - 1][i] = 1; // the hub uav distance to orther hubs is always 1
             }
-            for (uint32_t i = 0; i < config.nFerrys - 1; i++) {
+            for (uint32_t i = 0; i < config.nFerrys; i++) {
                 m_groupDistance[i][i] = 0; // the distance to itself is always 0
             }
         }
@@ -151,6 +151,7 @@ class HubBasedClusteringDtnApp : public BaseDtnApp {
     virtual Bundle* GroundSelectBundleToFerry(Ipv4Address neighborIp) override;
     // virtual Bundle* FerrySelectBundleToGround(Ipv4Address neighborIp);
     virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_nextWaypointIndex;
@@ -158,7 +159,7 @@ class HubBasedClusteringDtnApp : public BaseDtnApp {
     FerryRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
     std::set<uint32_t> m_metParter;
-    void ScheduleNextWaypoint();
+    double m_waitTime = 0;
 };
 
 NS_OBJECT_ENSURE_REGISTERED(HubBasedClusteringDtnApp);
@@ -217,7 +218,7 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         }
         if (wait) {
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-            Simulator::Schedule(Seconds(2.0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
+            Simulator::Schedule(Seconds(1.0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
             return;
         }
         m_metParter.clear(); // cleanup after leaving this waypoint
@@ -234,12 +235,12 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &HubBasedClusteringDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
 
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &HubBasedClusteringDtnApp::HoverAndScheduleNextWaypoint, this);
     FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 }
 

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260329"
+BATCH = "20260401_test"
 BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -28,11 +28,12 @@ base_params = {
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
-    "simTime": 14400,
+    "simTime": 15000,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "ferrySpeed": 12,
+    "hoverTime": 5,
     "minGenRate": 10.0, # sec/packet
     "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
@@ -44,21 +45,21 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
-    "name": ["DRC", "VHUB", "CHUB"],
-    # "name": [ "HUB"],
+    "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "DRC", "HUB" , "VHUB", "CHUB"],
+    # "name": [ "VHUB", "HUB","CHUB"],
+    # "name": [ "CHUB"],
 
     "nGrounds": [45],
-    # "nFerrys": [7, 10, 15],
-    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
-    "nFerrys": [ 12, 15, 20],
+    # "nFerrys": [10], 
+    "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    # "nFerrys": [ 12, 15, 20],
 
     "groundBufferSize": [1000],
-    # "ferryBufferSize": [25, 50, 75, 100, 150, 500],
+    # "ferryBufferSize": [ 50, 75, 100, 150,200,300, 500],
     "ferryBufferSize": [500],
 
     "bundleTTL": [ 450000000, 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
-    # "bundleTTL": [600000000], 
+    # "bundleTTL": [900000000], 
     # "bundleTTL": [  900000000], 
 
     "ferryComm": [False, True],
@@ -202,12 +203,17 @@ algo_variants= {
     "CHUB":{
         "default": {
             "warmupTime": 500,
+            "CHUB_virtualHub": True,
         },   
+        "realHub": {
+            "warmupTime": 500,
+            "CHUB_virtualHub": False,
+        },
     },
 }
 
-N_SEEDS = 5
-MAX_WORKERS = 7
+N_SEEDS = 1
+MAX_WORKERS = 8
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling

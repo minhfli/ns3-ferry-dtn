@@ -296,6 +296,7 @@ class DividedRouteCouplingDtnApp : public BaseDtnApp {
     virtual Bundle* GroundSelectBundleToFerry(Ipv4Address neighborIp) override;
     // virtual Bundle* FerrySelectBundleToGround(Ipv4Address neighborIp);
     virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
+    virtual void ScheduleNextWaypoint() override;
 
     private:
 
@@ -305,7 +306,6 @@ class DividedRouteCouplingDtnApp : public BaseDtnApp {
     DRC::DRCRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
     std::map<uint32_t, bool> m_metParter;
-    void ScheduleNextWaypoint();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(DividedRouteCouplingDtnApp);
@@ -405,7 +405,7 @@ void DividedRouteCouplingDtnApp::ScheduleNextWaypoint() {
         }
         if (wait) {
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-            Simulator::Schedule(Seconds(2.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
+            Simulator::Schedule(Seconds(1.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
             return;
         }
         m_waitTime = 0;
@@ -422,12 +422,12 @@ void DividedRouteCouplingDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &DividedRouteCouplingDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
 
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &DividedRouteCouplingDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &DividedRouteCouplingDtnApp::HoverAndScheduleNextWaypoint, this);
     FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 }
 

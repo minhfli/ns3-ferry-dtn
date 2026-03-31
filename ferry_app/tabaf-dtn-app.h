@@ -26,6 +26,7 @@ class TabafDtnApp : public BaseDtnApp {
     virtual std::vector<point2D> GetServingWaypointRoute() override;
 
     protected:
+    virtual void ScheduleNextWaypoint() override;
 
     virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
 
@@ -39,7 +40,6 @@ class TabafDtnApp : public BaseDtnApp {
 
     EventId m_mobilityScheduleEvent;
 
-    void ScheduleNextWaypoint();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(TabafDtnApp);
@@ -75,7 +75,7 @@ void TabafDtnApp::ScheduleNextWaypoint() {
         m_mobility->SetVelocity(Vector3D(relative.x / timeToReach, relative.y / timeToReach, 0.0));
     }
 
-    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(timeToReach), &TabafDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(timeToReach), &TabafDtnApp::HoverAndScheduleNextWaypoint, this);
 
 }
 

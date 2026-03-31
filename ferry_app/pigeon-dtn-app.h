@@ -47,6 +47,7 @@ class PigeonDtnApp : public BaseDtnApp {
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
 
     protected:
+    virtual void ScheduleNextWaypoint() override;
 
     // void ReceivePacket(Ptr<Socket> socket);
 
@@ -54,7 +55,6 @@ class PigeonDtnApp : public BaseDtnApp {
     void CleanUpPigeonRoute(); // remove waypoint from the pigeon route 
 
     EventId m_mobilityScheduleEvent;
-    void ScheduleNextWaypoint();
     void ScheduleFerryWaypoint();
     void SchedulePigeonWaypoint();
     void SchedulePigeonOnBufferFull();
@@ -203,13 +203,13 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
     if (time < 0.1) {
         // handle special case: when there only one node
         // ferry fly from its starting position to the only node then stay there, check every 1 seconds 
-        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(config.mobilityWaitTime), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(config.mobilityWaitTime), &PigeonDtnApp::HoverAndScheduleNextWaypoint, this);
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
         return;
     }
 
 
-    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::HoverAndScheduleNextWaypoint, this);
 
     point2D velocity;
     velocity.x = relative.x / distance * config.ferrySpeed;
@@ -254,11 +254,11 @@ void PigeonDtnApp::SchedulePigeonWaypoint() {
     m_pigeonNextIndex++;
 
     if (time < 0.1) {
-        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::ScheduleNextWaypoint, this);
+        m_mobilityScheduleEvent = Simulator::Schedule(Seconds(1.0), &PigeonDtnApp::HoverAndScheduleNextWaypoint, this);
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
         return;
     }
-    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::ScheduleNextWaypoint, this);
+    m_mobilityScheduleEvent = Simulator::Schedule(Seconds(time), &PigeonDtnApp::HoverAndScheduleNextWaypoint, this);
 
     point2D velocity;
     velocity.x = relative.x / distance * config.ferrySpeed;

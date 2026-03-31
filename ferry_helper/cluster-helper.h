@@ -372,11 +372,11 @@ namespace Clustering { // TODO Implement more
         return basePos;
     }
 
-    double BMTC_ComputeCost(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, double emptyClusterPenalty = 100) {
+    double BMTC_ComputeCost(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, bool extraOptimized = false, double emptyClusterPenalty = 2000) {
 
         uint32_t validClusters = 0;
         point2D cannidateHub = { 0,0 };
-        std::vector<double> cost(clusters.size());
+        std::vector<double> cost(clusters.size(), 0);
 
         // compute tsp cost
         for (uint32_t i = 0; i < clusters.size(); i++) {
@@ -385,9 +385,7 @@ namespace Clustering { // TODO Implement more
                 validClusters++;
                 clusters[i] = TSPTwoOptOptimize(points, clusters[i]);
                 cost[i] = ComputeTSPCost(clusters[i], points);
-            }
-            else {
-                cost[i] = 0;
+                cost[i] += config.ferrySpeed * config.hoverTime * clusters[i].size();
             }
         }
         cannidateHub = cannidateHub / validClusters; // center of centers of clusters
@@ -395,8 +393,9 @@ namespace Clustering { // TODO Implement more
         cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 10, 0.1);
         cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 20, 0.05);
         cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 50, 0.005);
-        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 100, 0.001);
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 120, 0.001);
         if (returnCentroid != nullptr) {
+            cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 500, 0.0001);// extra refinement
             *returnCentroid = cannidateHub;
         }
         // tìm max cost
@@ -416,13 +415,14 @@ namespace Clustering { // TODO Implement more
                 point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
                 minInsertCost = std::min(minInsertCost, dist(a, cannidateHub) + dist(b, cannidateHub) - dist(a, b));
             }
+
             maxCost = std::max(maxCost, cost[i] + minInsertCost);
             minCost = std::min(minCost, cost[i] + minInsertCost);
             totalCost += cost[i] + minInsertCost;
         }
         // minimizing maxCost, totalcost, penalty
         // maximizing mincost
-        return maxCost + 0.01 * totalCost - 0.05 * minCost + penalty;
+        return maxCost + 0.05 * totalCost / (double)clusters.size() - 0.05 * minCost + penalty;
     }
 
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {
@@ -496,6 +496,14 @@ namespace Clustering { // TODO Implement more
         auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
 
         return clusters;
+    }
+
+    ClusterSolution BMTC_localSearch(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k) {
+        return baseClusters;
+    }
+
+    ClusterSolution BMTC_routeExtend(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k) { // TODO
+        return baseClusters;
     }
 };
 #endif 

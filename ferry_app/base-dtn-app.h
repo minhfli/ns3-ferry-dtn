@@ -100,6 +100,8 @@ class BaseDtnApp : public Application {
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
 
+    virtual void ScheduleNextWaypoint() = 0;
+    void HoverAndScheduleNextWaypoint();
 
     void SetVisitTime(uint32_t nodeIp, uint64_t time);
     void UpdateVisitTime(const std::unordered_map<uint32_t, uint64_t> receivedVisitTime);
@@ -469,6 +471,11 @@ void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neigh
 
 #pragma region Scheduling
 
+void BaseDtnApp::HoverAndScheduleNextWaypoint() {
+    m_mobility->SetVelocity(Vector3D(0, 0, 0));
+    Simulator::Schedule(Seconds(config.hoverTime), &BaseDtnApp::ScheduleNextWaypoint, this);
+}
+
 Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
     RemoveExpiredBundles();
     if (m_buffer.empty()) return nullptr;
@@ -557,6 +564,10 @@ void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
 #pragma region Bundle Logic
 
 void BaseDtnApp::GenerateBundle() {
+    double currentTime = Simulator::Now().GetSeconds();
+    if (currentTime + (double)config.bundleTTL / 1000000.0 > config.simTime + config.warmupTime)
+        return; // dont create new bundle 
+
     m_bundleIdCounter++;
     Bundle b;
     b.hop = 0;

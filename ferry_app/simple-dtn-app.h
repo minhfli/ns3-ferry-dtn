@@ -60,11 +60,11 @@ class SingleRouteDtnApp : public BaseDtnApp {
     protected:
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_nextWaypointIndex;
     int m_direction;
-    void ScheduleNextWaypoint();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(SingleRouteDtnApp);
@@ -91,12 +91,12 @@ void SingleRouteDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &SingleRouteDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &SingleRouteDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
 
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &SingleRouteDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &SingleRouteDtnApp::HoverAndScheduleNextWaypoint, this);
     FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 }
 

@@ -219,6 +219,7 @@ class HubDtnApp : public BaseDtnApp {
     virtual Bundle* GroundSelectBundleToFerry(Ipv4Address neighborIp) override;
     // virtual Bundle* FerrySelectBundleToGround(Ipv4Address neighborIp);
     virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_nextWaypointIndex;
@@ -226,7 +227,6 @@ class HubDtnApp : public BaseDtnApp {
     FerryRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
 
-    void ScheduleNextWaypoint();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(HubDtnApp);
@@ -265,12 +265,12 @@ void HubDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &HubDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &HubDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
 
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &HubDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &HubDtnApp::HoverAndScheduleNextWaypoint, this);
     FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());
 }
 

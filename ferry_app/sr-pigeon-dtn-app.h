@@ -28,6 +28,7 @@ class SingleRoutePigeonDtnApp : public BaseDtnApp {
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_nextFerryIndex;
@@ -41,7 +42,6 @@ class SingleRoutePigeonDtnApp : public BaseDtnApp {
 
     int m_direction;
 
-    void ScheduleNextWaypoint();
 };
 
 NS_OBJECT_ENSURE_REGISTERED(SingleRoutePigeonDtnApp);
@@ -159,11 +159,11 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &SingleRoutePigeonDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &SingleRoutePigeonDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &SingleRoutePigeonDtnApp::HoverAndScheduleNextWaypoint, this);
 
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
     FerryVisualizer::logRoute(nodeId[m_myIp.Get()], GetServingWaypointRoute());

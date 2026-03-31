@@ -118,6 +118,7 @@ class RoutePrunningDeadlineAwareShortcutDtnApp : public BaseDtnApp {
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
     virtual Bundle* GroundSelectBundleToFerry(Ipv4Address neighborIp) override;
     // virtual void ReceivePacket(Ptr<Socket> socket);
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_lastFerryIndex; // index in the m_ferryRoute
@@ -130,7 +131,6 @@ class RoutePrunningDeadlineAwareShortcutDtnApp : public BaseDtnApp {
 
     int m_direction;
 
-    void ScheduleNextWaypoint();
     void Reroute(uint32_t removeFerryIndex, uint32_t addNodeIp);
 };
 
@@ -274,11 +274,11 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &RoutePrunningDeadlineAwareShortcutDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &RoutePrunningDeadlineAwareShortcutDtnApp::HoverAndScheduleNextWaypoint, this);
 
     if (config.SR_PIGEON_V2_vtModePredict) { // predict the visit time of the target node to share with other uavs
         SetVisitTime(

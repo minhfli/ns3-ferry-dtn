@@ -28,6 +28,7 @@ class SingleRouteTabafDtnApp : public BaseDtnApp {
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
+    virtual void ScheduleNextWaypoint() override;
 
     private:
     uint32_t m_lastFerryIndex;
@@ -45,7 +46,6 @@ class SingleRouteTabafDtnApp : public BaseDtnApp {
 
     std::vector<double> m_nodeScore;
 
-    void ScheduleNextWaypoint();
     void CalculateNodeScore();
 };
 
@@ -145,11 +145,11 @@ void SingleRouteTabafDtnApp::ScheduleNextWaypoint() {
 
     if (timeToReach < 0.1) {
         m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-        Simulator::Schedule(Seconds(1.0), &SingleRouteTabafDtnApp::ScheduleNextWaypoint, this);
+        Simulator::Schedule(Seconds(1.0), &SingleRouteTabafDtnApp::HoverAndScheduleNextWaypoint, this);
         return;
     }
     m_mobility->SetVelocity(Vector(relative.x / timeToReach, relative.y / timeToReach, 0.0));
-    Simulator::Schedule(Seconds(timeToReach), &SingleRouteTabafDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(timeToReach), &SingleRouteTabafDtnApp::HoverAndScheduleNextWaypoint, this);
 
     if (config.SR_PIGEON_V2_vtModePredict) { // predict the visit time of the target node to share with other uavs
         SetVisitTime(

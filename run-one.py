@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "HUB", # algorithm name
+    "name": "SIRA", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
@@ -15,6 +15,7 @@ params = {
     "DRC_graphMode": "DRC_GABRIEL",
     "waypointSelectMode" :"PROBABILISTIC",
     "HUB_nHubs": 1,
+    "CHUB_virtualHub": False,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
