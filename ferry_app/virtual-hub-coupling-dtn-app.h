@@ -85,13 +85,9 @@ namespace VHUB {
 
         NS_LOG_UNCOND("VHUB: Calculating HUB position..");
         point2D hubPos = getCentroid(centroid);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.1, 10);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.05, 50);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.02, 50);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.01, 50);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.005, 100);
-        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.002, 100);
+
         hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.001, 100);
+        hubPos = VhubRefineHubPosition(hubPos, m_routes, 0.0001, 1000);
 
         for (uint32_t f = 0; f < config.nFerrys; f++) {
             auto& route = m_routes[f];

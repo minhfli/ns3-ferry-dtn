@@ -373,6 +373,7 @@ namespace Clustering { // TODO Implement more
     }
 
     std::map<std::set<uint32_t>, std::vector<uint32_t>> BMTC_TSP_routeMap;
+    double BMTC_routeLengthCap = 0;
     std::vector<uint32_t> BMTC_TSP_helper(const std::vector<uint32_t>& indexes, const std::vector<point2D>& points) {
         std::set<uint32_t> indexSet(indexes.begin(), indexes.end());
         if (BMTC_TSP_routeMap.find(indexSet) != BMTC_TSP_routeMap.end()) {
@@ -438,7 +439,7 @@ namespace Clustering { // TODO Implement more
         }
         // minimizing maxCost, totalcost, penalty
         // maximizing mincost
-        return maxCost + 0.1 * totalCost / (double)clusters.size() - 0.005 * minCost + penalty;
+        return maxCost + 0.1 * totalCost / (double)clusters.size() - 0.01 * minCost + penalty;
     }
 
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {
@@ -532,9 +533,9 @@ namespace Clustering { // TODO Implement more
         return bestClusters;
     }
 
-    ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, uint32_t k, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+    ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 200;
-
+        BMTC_routeLengthCap = expectedRouteLengthCap;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA");
         // generate initial population
         std::vector<BMTC_GA_Chromosome> population(population_size);

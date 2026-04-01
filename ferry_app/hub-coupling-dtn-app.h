@@ -119,21 +119,9 @@ namespace HUB {
                 route = TwoOpt(route);
             }
         }
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #1 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.1, 10);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #2 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.05, 50);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #3 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.02, 50);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #4 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.01, 50);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #5 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.005, 100);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #6 " << m_hubPos[0].x << " " << m_hubPos[0].y);
-        RefineHubPosition(0.002, 100);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #7 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+
         RefineHubPosition(0.001, 100);
-        NS_LOG_UNCOND("HUB: Refine HUB position.. #8 " << m_hubPos[0].x << " " << m_hubPos[0].y);
+        RefineHubPosition(0.0001, 1000);
 
         for (uint32_t h = 0; h < config.HUB_nHubs; h++) { // route setup for hubs
             FerryRoute route;

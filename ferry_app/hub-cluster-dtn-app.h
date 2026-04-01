@@ -25,10 +25,16 @@ namespace CHUB {
 
     ClusterSolution GetCluster() {
         if (config.CHUB_virtualHub) {
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys, 200, 7000);
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
+                groundNodePos, config.nFerrys,
+                (double)config.bundleTTL * config.ferrySpeed / 3,
+                 200, 7000);
         }
         else { // use 1 uav as real hub
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(groundNodePos, config.nFerrys - 1, 200, 7000);
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
+                groundNodePos, config.nFerrys - 1,
+                (double)config.bundleTTL * config.ferrySpeed / 3,
+                200, 7000);
             m_clusters.push_back({ });
         }
         Clustering::BMTC_ComputeCost(m_clusters, groundNodePos, &m_hubPos);

@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -45,10 +45,10 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
     # "name": [  "HUB" , "VHUB", "CHUB"],
     # "name": [ "VHUB", "HUB","CHUB"],
-    # "name": [ "CHUB"],
+    "name": [ "MRDLAS"],
 
     "nGrounds": [45],
     # "nFerrys": [10], 
