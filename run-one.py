@@ -5,12 +5,13 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 1337,
-    "name": "SIRA", # algorithm name
+    "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
-    "simTime": 7200,
+    "simTime": 10000,
     "warmupTime": 500,
+    "hoverTime": 5,
     #* some algorithm specific config
     "DRC_graphMode": "DRC_GABRIEL",
     "waypointSelectMode" :"PROBABILISTIC",
@@ -21,7 +22,7 @@ params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 45,
-    "nFerrys": 10,
+    "nFerrys": 15,
     "ferrySpeed": 12,
     "groundBufferSize": 1000,
     "ferryBufferSize": 500,

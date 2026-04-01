@@ -104,15 +104,17 @@ void SingleRoutePigeonV2DtnApp::ScheduleNextWaypoint() {
             nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval1,
-            50, 200
+            50, 500
         );
         auto route2 = TSPDeadlineHelper(groundNodePos, deadlines,
             { currentPos.x, currentPos.y },
             currentTime,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval2,
-            50, 200
+            50, 500
         );
 
         if (dlval2 > 0) {

@@ -38,7 +38,6 @@
 #include "ferry_app/tabaf-dtn-app.h"
 #include "ferry_app/sr-pigeon-dtn-app.h"
 #include "ferry_app/sr-pigeon-v2-dtn-app.h"
-#include "ferry_app/tabadla-dtn-app.h"
 #include "ferry_app/tabara-dtn-app.h"
 #include "ferry_app/taba2s-dtn-app.h"
 #include "ferry_app/route-prune-delay-aware-dtn-app.h"
@@ -74,9 +73,6 @@ Ptr<BaseDtnApp> createApp() {
     }
     if (config.ALGORITHM_NAME == "SR_PIGEON_V2") {
         return CreateObject<SingleRoutePigeonV2DtnApp>();
-    }
-    if (config.ALGORITHM_NAME == "TABADLA") {
-        return CreateObject<TabaDlaDtnApp>();
     }
     if (config.ALGORITHM_NAME == "TABARA") {
         return CreateObject<TabaraDtnApp>();
@@ -115,7 +111,6 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "TABAF") return 1;
     if (config.ALGORITHM_NAME == "SR_PIGEON") return 1;
     if (config.ALGORITHM_NAME == "SR_PIGEON_V2") return 1;
-    if (config.ALGORITHM_NAME == "TABADLA") return 1;
     if (config.ALGORITHM_NAME == "TABARA")  return 1;
     if (config.ALGORITHM_NAME == "TABA2S")  return 1;
     if (config.ALGORITHM_NAME == "RPDLAS")  return 1;

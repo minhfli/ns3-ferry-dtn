@@ -92,6 +92,7 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
             nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
+            config.hoverTime,
             &cost1,
             50,
             200
@@ -102,6 +103,7 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
             { currentPos.x, currentPos.y },
             currentTime,
             config.ferrySpeed,
+            config.hoverTime,
             &cost2,
             50,
             200

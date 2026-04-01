@@ -23,7 +23,7 @@ namespace MRDLAS {
                 (std::set<uint32_t>) {
                 g
             },
-                100, 4000
+                200, 5000
             ); // remove one node from route
 
             uint32_t minIndex = 0;
@@ -155,15 +155,17 @@ void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
             nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval1,
-            50, 500
+            80, 1000
         );
         auto route2 = TSPDeadlineHelper(groundNodePos, deadlines,
             { currentPos.x, currentPos.y },
             currentTime,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval2,
-            50, 500
+            80, 1000
         );
 
         if (dlval2 > 0) {

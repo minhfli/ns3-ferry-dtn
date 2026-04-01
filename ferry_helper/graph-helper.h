@@ -90,7 +90,7 @@ std::vector<std::vector<uint32_t>> findInitialHubs(const Graph& g) {
         int bestIdx = -1;
         std::set<std::pair<uint32_t, uint32_t>> bestCovered;
 
-        for (int k = 0; k < cliques.size(); ++k) {
+        for (uint32_t k = 0; k < cliques.size(); ++k) {
             std::set<std::pair<uint32_t, uint32_t>> covered;
             std::vector<uint32_t> nodes(cliques[k].begin(), cliques[k].end());
             for (size_t i = 0; i < nodes.size(); ++i) {

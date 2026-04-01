@@ -211,6 +211,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
             nextFerryPos,
             currentTime + timeToReach,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval1,
             50, 200
         );
@@ -218,6 +219,7 @@ void RoutePrunningDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
             { currentPos.x, currentPos.y },
             currentTime,
             config.ferrySpeed,
+            config.hoverTime,
             &dlval2,
             50, 200
         );

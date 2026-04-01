@@ -165,6 +165,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
             m_ferryPoints[m_ferryOrder[m_ferryNextIndex]], // starting pos
             currentTime + time,
             config.ferrySpeed,
+            config.hoverTime,
             &cost,
             50,
             500
@@ -180,6 +181,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
                 { currentPos.x, currentPos.y }, // starting pos
                 currentTime,
                 config.ferrySpeed,
+                config.hoverTime,
                 &newCost,
                 50, 500
             );
@@ -273,21 +275,17 @@ void PigeonDtnApp::SchedulePigeonOnBufferFull() { // TODO remove, this function 
     auto deadlines = GetDeadlines();
 
     std::vector<uint32_t> pigeonRoute;
-    pigeonRoute = TSPDeadlineBasedGA(
-        groundNodePos,
-        deadlines,
-        { currentPos.x, currentPos.y }, // starting pos
-        currentTime,
-        config.ferrySpeed
-    );
-    pigeonRoute = TSPDeadlineBasedTwoOptOptimize(
+    pigeonRoute = TSPDeadlineHelper(
         groundNodePos,
         deadlines,
         { currentPos.x, currentPos.y }, // starting pos
         currentTime,
         config.ferrySpeed,
-        pigeonRoute
+        config.hoverTime,
+        nullptr,
+        50, 500
     );
+
     m_mode = MODE_PIGEON;
     m_pigeonOrder = pigeonRoute;
     m_pigeonNextIndex = 0;

@@ -329,14 +329,15 @@ FerryRoute TwoOpt(FerryRoute route) {
 }
 #pragma endregion
 
-#pragma region "DEADLINE BASED TSP"
+#pragma region "DEADLINE TSP"
 
 uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
     const std::vector<point2D>& points,
     const std::vector<std::vector<double>>& deadlines,
     const point2D starting_pos,
     const double starting_time,
-    const double speed
+    const double speed,
+    const double hoverTime
 ) {
     uint32_t cost = 0;
     double currentTime = starting_time;
@@ -353,6 +354,7 @@ uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
                 cost += 1; // large penalty for missing deadline
             }
         }
+        currentTime += hoverTime;
 
         currentPos = nextPos;
     }
@@ -372,6 +374,7 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
     const point2D starting_pos,
     const double starting_time,
     const double speed,
+    const double hoverTime,
     const uint32_t population_size = 100,
     const uint32_t max_generation = 2000,
     uint32_t* best_cost = nullptr
@@ -401,7 +404,7 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
     for (TSPSolution& sol : population) {
         sol.order = baseOrder;
         std::shuffle(sol.order.begin(), sol.order.end(), gen);
-        sol.cost = ComputeDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed);
+        sol.cost = ComputeDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
     }
     std::sort(population.begin(), population.end());
 
@@ -416,7 +419,7 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
             TSPSolution sol;
             sol.order = OrderCrossover(population[id1].order, population[id2].order, gen);
             SwapMutation(sol.order, gen, MUT_PROB);
-            sol.cost = ComputeDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed);
+            sol.cost = ComputeDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
             new_population.push_back(sol);
         }
         std::swap(population, new_population); // faster than assignment
@@ -438,6 +441,7 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
     const point2D starting_pos,
     const double starting_time,
     const double speed,
+    const double hoverTime,
     const std::vector<uint32_t>& baseOrder,
     uint32_t* best_cost = nullptr
 ) {
@@ -446,7 +450,7 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
     }
 
     std::vector<uint32_t> order = baseOrder;
-    uint32_t bestCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+    uint32_t bestCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
     bool improve = true;
 
     while (improve) {
@@ -454,7 +458,7 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
         for (size_t i = 0; i < order.size() - 1; ++i) {
             for (size_t j = i + 1; j < order.size(); ++j) {
                 std::reverse(order.begin() + i, order.begin() + j + 1);
-                uint32_t newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+                uint32_t newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
                 if (newCost < bestCost) {
                     bestCost = newCost;
                     improve = true;
@@ -463,7 +467,7 @@ std::vector<uint32_t> TSPDeadlineBasedTwoOptOptimize(
                     std::reverse(order.begin() + i, order.begin() + j + 1);
                 }
                 std::swap(order[i], order[j]);
-                newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed);
+                newCost = ComputeDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
                 if (newCost < bestCost) {
                     bestCost = newCost;
                     improve = true;
@@ -486,12 +490,13 @@ std::vector<uint32_t> TSPDeadlineHelper(
     const point2D starting_pos,
     const double starting_time,
     const double speed,
+    const double hoverTime,
     uint32_t* best_cost = nullptr,
     const uint32_t population_size = 100,
     const uint32_t max_generation = 2000
 ) {
-    std::vector<uint32_t> order = TSPDeadlineBasedGA(points, deadlines, starting_pos, starting_time, speed, population_size, max_generation);
-    order = TSPDeadlineBasedTwoOptOptimize(points, deadlines, starting_pos, starting_time, speed, order, best_cost);
+    std::vector<uint32_t> order = TSPDeadlineBasedGA(points, deadlines, starting_pos, starting_time, speed, hoverTime, population_size, max_generation);
+    order = TSPDeadlineBasedTwoOptOptimize(points, deadlines, starting_pos, starting_time, speed, hoverTime, order, best_cost);
     return order;
 }
 #pragma endregion
