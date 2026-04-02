@@ -331,6 +331,11 @@ FerryRoute TwoOpt(FerryRoute route) {
 
 #pragma region "DEADLINE TSP"
 
+struct TSPDeadlineItem {
+    double time;
+    double weight = 1;
+};
+
 uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
     const std::vector<point2D>& points,
     const std::vector<std::vector<double>>& deadlines,
@@ -362,6 +367,40 @@ uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
 
     return cost;
 }
+
+uint32_t ComputeWeightedDeadlineCost(const std::vector<uint32_t>& order,
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<TSPDeadlineItem>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    const double hoverTime
+) {
+    uint32_t cost = 0;
+    double currentTime = starting_time;
+    point2D currentPos = starting_pos;
+    for (size_t i = 0; i < order.size(); ++i) {
+        point2D nextPos = points[order[i]];
+        double distance = dist(currentPos, nextPos);
+        double travelTime = distance / speed;
+        currentTime += travelTime;
+
+        // check deadlines
+        for (auto deadline : deadlines[order[i]]) {
+            if (currentTime <= deadline.time) {
+                cost -= deadline.weight;
+            }
+        }
+        currentTime += hoverTime;
+
+        currentPos = nextPos;
+    }
+    // NS_LOG_UNCOND("Hello?");
+
+    return cost;
+}
+
+
 
 /**
  * Find a route that go through all the points so that the most of deadlines are sastisfied

@@ -158,7 +158,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
 
     if (m_buffer.size() > 0) {
         std::vector<uint32_t> pigeonRoute;
-        uint32_t cost;
+        uint32_t cost; // how many bundle that i missed ?
         pigeonRoute = TSPDeadlineHelper(
             groundNodePos,
             deadlines,
@@ -171,8 +171,8 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
             500
         );
 
-// cannot sastify all deadlines or buffer full -> switch to pigeon mode
-        if (cost < m_buffer.size() || m_buffer.size() >= m_maxBufferSize) {
+        // cannot sastify all deadlines or buffer full -> switch to pigeon mode
+        if (cost > 0 || m_buffer.size() >= m_maxBufferSize) {
             uint32_t newCost;
 
             pigeonRoute = TSPDeadlineHelper(

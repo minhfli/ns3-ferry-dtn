@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -45,21 +45,21 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
-    # "name": [ "VHUB", "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
+    "name": [ "PIGEON", "MRDLAS"],
     # "name": [ "VHUB", "HUB","CHUB"],
 
     "nGrounds": [45],
-    "nFerrys": [10], 
-    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    # "nFerrys": [10], 
+    "nFerrys": [ 5, 7, 10, 12, 15, 20],
 
     "groundBufferSize": [1000],
-    "ferryBufferSize": [ 50, 75, 100, 150, 200, 500],
-    # "ferryBufferSize": [500],
+    # "ferryBufferSize": [ 50, 75, 100, 150, 200, 500],
+    "ferryBufferSize": [500],
 
-    # "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
+    "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
     # "bundleTTL": [1200000000], 
-    "bundleTTL": [600000000, 900000000], 
+    # "bundleTTL": [600000000, 900000000], 
 
     "ferryComm": [False, True],
 }
@@ -93,6 +93,9 @@ algo_variants= {
     "MRDLAS": {
         "default": {
             "waypointSelectMode": "PROBABILISTIC",
+        },  
+        "DWS": {
+            "waypointSelectMode": "DETERMINISTIC",
         },  
     },
     "TABADLA": {
@@ -212,7 +215,7 @@ algo_variants= {
 }
 
 N_SEEDS = 5
-MAX_WORKERS = 8
+MAX_WORKERS = 7
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling

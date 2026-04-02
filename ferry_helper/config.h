@@ -114,6 +114,7 @@ struct Config {
     std::string RPDLAS_pruneMode = RPDLAS_PRUNE_HALF;
 
     std::string MRDLAS_routeMode = MRDLAS_ONE_ROUTE_EACH;
+    bool MRDLAS_weightedDeadline = false;
 
     // waypoint selection config, for Tabaf and its derived algorithm
     std::string waypointSelectMode = DETERMINISTIC;
@@ -189,6 +190,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("RPDLAS_operationMode", "RPDLAS operation mode", config.RPDLAS_operationMode);
     cmd.AddValue("RPDLAS_pruneMode", "RPDLAS prune mode", config.RPDLAS_pruneMode);
     cmd.AddValue("MRDLAS_routeMode", "MRDLAS route mode", config.MRDLAS_routeMode);
+    cmd.AddValue("MRDLAS_weightedDeadline", "MRDLAS weighted deadline", config.MRDLAS_weightedDeadline);
     cmd.AddValue("DRC_graphMode", "DRC graph mode", config.DRC_graphMode);
     cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
     cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);

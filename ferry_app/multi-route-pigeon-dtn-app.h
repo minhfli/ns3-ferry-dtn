@@ -167,6 +167,8 @@ void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
             &dlval2,
             80, 1000
         );
+        dlval1 = m_buffer.size() - dlval1;
+        dlval2 = m_buffer.size() - dlval2;
 
         if (dlval2 > 0) {
             uint32_t nextFerryNode = groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get();

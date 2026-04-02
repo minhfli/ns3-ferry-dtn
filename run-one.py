@@ -5,15 +5,16 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 762227828,
-    "name": "VHUB", # algorithm name
+    "name": "PIGEON", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug", # run name for log file
+    "run": "debug2", # run name for log file
     "simTime": 15000,
     "warmupTime": 500,
     "hoverTime": 5,
     #* some algorithm specific config
-    "waypointSelectMode" :"PROBABILISTIC",
+    # "waypointSelectMode" :"PROBABILISTIC",
+    "waypointSelectMode" :"DETERMINISTIC",
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     #* default config

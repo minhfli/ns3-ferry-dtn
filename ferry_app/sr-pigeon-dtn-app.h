@@ -108,6 +108,8 @@ void SingleRoutePigeonDtnApp::ScheduleNextWaypoint() {
             50,
             200
         );
+        cost1 = m_buffer.size() - cost1;
+        cost2 = m_buffer.size() - cost2;
 
         uint32_t firstPigeonNode = groundNodeIps[route2[0]].Get();
         uint32_t nextFerryNode = groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get();
