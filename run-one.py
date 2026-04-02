@@ -4,25 +4,24 @@ import os
 PROGRAM = "ferry"
 
 params = {
-    "seed": 1337,
-    "name": "CHUB", # algorithm name
+    "seed": 762227828,
+    "name": "VHUB", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
-    "simTime": 10000,
+    "simTime": 15000,
     "warmupTime": 500,
     "hoverTime": 5,
     #* some algorithm specific config
-    "DRC_graphMode": "DRC_GABRIEL",
     "waypointSelectMode" :"PROBABILISTIC",
     "HUB_nHubs": 1,
-    "CHUB_virtualHub": False,
+    "CHUB_virtualHub": True,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 45,
-    "nFerrys": 15,
+    "nFerrys": 10,
     "ferrySpeed": 12,
     "groundBufferSize": 1000,
     "ferryBufferSize": 500,
@@ -31,7 +30,7 @@ params = {
     "genSrcScheduler": "RANDOM_RANGE",
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
-    "bundleTTL": 900000000, # microsec
+    "bundleTTL": 1200000000, # microsec
     "ferryComm": True, # enable communication between ferry
 }
 

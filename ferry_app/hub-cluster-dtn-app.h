@@ -20,6 +20,7 @@ namespace CHUB {
     std::vector<std::vector<uint32_t>> m_groupDistance;
     std::vector<FerryRoute> m_routes;
     std::vector<double> m_routeLength;
+    std::vector<double> m_scheduledMeetingTime;
     point2D m_hubPos;
 
 
@@ -27,13 +28,13 @@ namespace CHUB {
         if (config.CHUB_virtualHub) {
             m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
                 groundNodePos, config.nFerrys,
-                (double)config.bundleTTL * config.ferrySpeed / 3,
+                (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.5,
                  200, 7000);
         }
         else { // use 1 uav as real hub
             m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
                 groundNodePos, config.nFerrys - 1,
-                (double)config.bundleTTL * config.ferrySpeed / 3,
+                (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.5,
                 200, 7000);
             m_clusters.push_back({ });
         }
@@ -93,12 +94,18 @@ namespace CHUB {
         }
 
         NS_LOG_UNCOND("CHUB: calculating route length..");
+
         for (uint32_t i = 0; i < config.nFerrys; i++) {
             for (uint32_t j = 0; j < m_routes[i].size(); j++) {
                 m_routeLength[i] += dist(m_routes[i][j].pos, m_routes[i][(j + 1) % m_routes[i].size()].pos);
             }
+            m_routeLength[i] += m_routes[i].size() * config.hoverTime * config.ferrySpeed;
         }
-
+        double maxRouteLength = *std::max_element(m_routeLength.begin(), m_routeLength.end());
+        m_scheduledMeetingTime.push_back(config.warmupTime);
+        while (m_scheduledMeetingTime.back() < config.warmupTime + config.simTime) {
+            m_scheduledMeetingTime.push_back(m_scheduledMeetingTime.back() + maxRouteLength / config.ferrySpeed + 0.1);
+        }
     }
 
 
@@ -164,8 +171,8 @@ class HubBasedClusteringDtnApp : public BaseDtnApp {
     int m_direction;
     FerryRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
-    std::set<uint32_t> m_metParter;
-    double m_waitTime = 0;
+    uint32_t m_scheduledMeetingTimeIndex = 0;
+    bool m_waited = false;
 };
 
 NS_OBJECT_ENSURE_REGISTERED(HubBasedClusteringDtnApp);
@@ -176,11 +183,23 @@ void HubBasedClusteringDtnApp::InitializeMobility(const std::vector<uint32_t>& s
     m_ferryRoute = CHUB::AssignRoute();
     for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
         if (m_ferryRoute[i].isRendezvous) {
-            m_nextWaypointIndex = i - m_direction;
-            if (m_nextWaypointIndex < 0) m_nextWaypointIndex += m_ferryRoute.size();
+            m_nextWaypointIndex = i; // tạm gán bằng vị trí hub
             break;
         }
     }
+
+    if (m_ferryRoute.size() > 2) { // chọn chiều nào để đi theo chiều nào đến nút gần hơn
+        point2D A = m_ferryRoute[(m_nextWaypointIndex + 1) % m_ferryRoute.size()].pos;
+        point2D B = m_ferryRoute[(m_nextWaypointIndex - 1 + m_ferryRoute.size()) % m_ferryRoute.size()].pos;
+        point2D Hub = CHUB::m_hubPos;
+        if (dist(A, Hub) < dist(B, Hub))
+            m_direction = 1;
+        else
+            m_direction = -1;
+    }
+
+    m_nextWaypointIndex = (m_nextWaypointIndex - m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
+
     Simulator::Schedule(Seconds(0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
 }
 
@@ -194,40 +213,20 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         }
     }
 
-    if (config.CHUB_virtualHub && m_reachedFirstWaypoint && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+    if (config.CHUB_virtualHub && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
         // Chỉ wait với chế độ virtual hub
-        m_reachedFirstWaypoint = true;
-        auto currentWaypoint = m_ferryRoute[m_nextWaypointIndex];
-        bool wait = false;
-        for (auto f : currentWaypoint.tagList) { // xét từng đối tác sẽ gặp tại waypoint này
-            if (m_metParter.find(f) != m_metParter.end())
-                continue; // đã gặp trong thời gian chờ
-            if (f == (uint32_t)m_groupId)
-                continue;
-
-            uint32_t ferryId = ferryIps[f].Get();
-
-            if (m_neighbor.find(ferryId) == m_neighbor.end()) { // chưa từng gặp
-                wait = true; // không break để có thể kiểm tra các partner khác
-            }
-            else {
-                double lastContact = (double)m_neighbor[ferryId].lastContactTime / 1000000.0;
-                double currentTime = Simulator::Now().GetSeconds();
-                lastContact = currentTime - lastContact;
-                if (lastContact > config.DRC_lastContactTimeout) { // đã lâu chưa gặp
-                    wait = true;
-                }
-                else {
-                    m_metParter.insert(f); // đã gặp
-                }
-            }
-        }
-        if (wait) {
+        if (!m_waited) {
+            m_waited = true;
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-            Simulator::Schedule(Seconds(1.0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
+            double currentTime = Simulator::Now().GetSeconds();
+            NS_ASSERT_MSG(currentTime <= CHUB::m_scheduledMeetingTime[m_scheduledMeetingTimeIndex], "FATAL: CHUB Timing error");
+            Simulator::Schedule(Seconds(CHUB::m_scheduledMeetingTime[m_scheduledMeetingTimeIndex] - currentTime), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
             return;
         }
-        m_metParter.clear(); // cleanup after leaving this waypoint
+        else {
+            m_scheduledMeetingTimeIndex++;
+            m_waited = false;
+        }
     }
 
     m_reachedFirstWaypoint = true;

@@ -21,6 +21,7 @@ namespace VHUB {
     std::vector<std::vector<uint32_t>> m_groupDistance;
     std::vector<FerryRoute> m_routes;
     std::vector<double> m_routeLength;
+    std::vector<double> m_scheduledMeetingTime;
 
     point2D VhubRefineHubPosition(point2D basePos, const std::vector<FerryRoute>& refineRoutes, double learningRate, const int iteration) {
         for (int iter = 0; iter < iteration; iter++) {
@@ -71,15 +72,11 @@ namespace VHUB {
 
         NS_LOG_UNCOND("VHUB: Calculate initial routes..");
         m_routes.resize(config.nFerrys);
-        m_routeLength.resize(config.nFerrys);
+        m_routeLength = std::vector<double>(config.nFerrys, 0);
         for (uint32_t f = 0; f < config.nFerrys; f++) {
             auto route = TSPHelper(groundNodePos, DataStructureHelper::GetReversedSet(clusters[f], groundNodePos.size()), 100, 2000);
             for (uint32_t i : route) {
                 m_routes[f].push_back({ groundNodePos[i], i, false });
-            }
-            NS_LOG_UNCOND("Route for ferry " << f);
-            for (auto wp : m_routes[f]) {
-                NS_LOG_UNCOND(wp.tag);
             }
         }
 
@@ -100,7 +97,6 @@ namespace VHUB {
             for (uint32_t i = 0; i < route.size(); i++) {
                 point2D A = route[i].pos;
                 point2D B = route[(i + 1) % route.size()].pos;
-                m_routeLength[f] += dist(A, B);
                 double insertCost = dist(hubPos, A) + dist(hubPos, B) - dist(A, B);
                 if (insertCost < minInsertCost) {
                     minInsertCost = insertCost;
@@ -108,20 +104,9 @@ namespace VHUB {
                 }
             }
             route.insert(route.begin() + insertIdx + 1, { hubPos, 0, true, DataStructureHelper::GetIndexVector(config.nFerrys) });
-            m_routeLength[f] += minInsertCost;
         }
 
-
-        for (uint32_t f = 0; f < config.nFerrys; f++) {
-            m_routeLength[f] = 0;
-            for (uint32_t i = 0; i < m_routes[f].size(); i++) {
-                point2D A = m_routes[f][i].pos;
-                point2D B = m_routes[f][(i + 1) % m_routes[f].size()].pos;
-                m_routeLength[f] += dist(A, B);
-            }
-        }
-
-        NS_LOG_UNCOND("DRC: Calculating group distance..");
+        NS_LOG_UNCOND("VHUB: Calculating group distance..");
         m_groupDistance = std::vector<std::vector<uint32_t>>(config.nFerrys, std::vector<uint32_t>(config.nFerrys, 10000000));
         for (uint32_t u = 0; u < config.nFerrys; u++) {
             for (uint32_t v = 0; v < config.nFerrys; v++)
@@ -136,7 +121,20 @@ namespace VHUB {
                 }
             }
         }
-        NS_LOG_UNCOND("DRC: Done");
+
+        NS_LOG_UNCOND("VHUB: calculating route length..");
+        for (uint32_t i = 0; i < config.nFerrys; i++) {
+            for (uint32_t j = 0; j < m_routes[i].size(); j++) {
+                m_routeLength[i] += dist(m_routes[i][j].pos, m_routes[i][(j + 1) % m_routes[i].size()].pos);
+            }
+            m_routeLength[i] += m_routes[i].size() * config.hoverTime * config.ferrySpeed;
+        }
+        double maxRouteLength = *std::max_element(m_routeLength.begin(), m_routeLength.end());
+        m_scheduledMeetingTime.push_back(config.warmupTime);
+        while (m_scheduledMeetingTime.back() < config.warmupTime + config.simTime) {
+            m_scheduledMeetingTime.push_back(m_scheduledMeetingTime.back() + maxRouteLength / config.ferrySpeed + 0.1);
+        }
+        NS_LOG_UNCOND("VHUB: Done");
         return;
     }
 
@@ -202,7 +200,8 @@ class VirtualHubDtnApp : public BaseDtnApp {
     uint32_t m_nextWaypointIndex;
     int m_direction;
     FerryRoute m_ferryRoute;
-    bool m_reachedFirstWaypoint = false;
+    bool m_waited = false;
+    uint32_t m_scheduledMeetingTimeIndex = 0;
     std::map<uint32_t, bool> m_metParter;
 };
 
@@ -226,41 +225,23 @@ void VirtualHubDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNo
 void VirtualHubDtnApp::ScheduleNextWaypoint() {
     Vector3D currentPos = m_mobility->GetPosition();
 
-    if (m_reachedFirstWaypoint && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
-        m_reachedFirstWaypoint = true;
-        auto currentWaypoint = m_ferryRoute[m_nextWaypointIndex];
-        bool wait = false;
-        for (auto f : currentWaypoint.tagList) { // xét từng đối tác sẽ gặp tại waypoint này
-            if (m_metParter.find(f) != m_metParter.end() && m_metParter[f])
-                continue; // đã gặp trong thời gian chờ
-            if (f == (uint32_t)m_groupId)
-                continue;
-
-            uint32_t ferryId = ferryIps[f].Get();
-
-            if (m_neighbor.find(ferryId) == m_neighbor.end()) { // chưa từng gặp
-                wait = true; // không break để có thể kiểm tra các partner khác
-            }
-            else {
-                double lastContact = (double)m_neighbor[ferryId].lastContactTime / 1000000.0;
-                double currentTime = Simulator::Now().GetSeconds();
-                lastContact = currentTime - lastContact;
-                if (lastContact > config.DRC_lastContactTimeout) { // đã lâu chưa gặp
-                    wait = true;
-                }
-                else {
-                    m_metParter[f] = true;
-                }
-            }
-        }
-        if (wait) {
+    if (m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+        // Chỉ wait với chế độ virtual hub
+        if (!m_waited) {
+            m_waited = true;
             m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
-            Simulator::Schedule(Seconds(1.0), &VirtualHubDtnApp::ScheduleNextWaypoint, this);
+            double currentTime = Simulator::Now().GetSeconds();
+            NS_ASSERT_MSG(currentTime <= VHUB::m_scheduledMeetingTime[m_scheduledMeetingTimeIndex], "FATAL: VHUB Timing error");
+            Simulator::Schedule(Seconds(VHUB::m_scheduledMeetingTime[m_scheduledMeetingTimeIndex] - currentTime), &VirtualHubDtnApp::ScheduleNextWaypoint, this);
             return;
         }
-        m_metParter.clear(); // cleanup after leaving this waypoint
+        else {
+            m_scheduledMeetingTimeIndex++;
+            m_waited = false;
+        }
     }
-    m_reachedFirstWaypoint = true;
+
+
     m_nextWaypointIndex = (m_nextWaypointIndex + m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
     point2D target = m_ferryRoute[m_nextWaypointIndex].pos;
 

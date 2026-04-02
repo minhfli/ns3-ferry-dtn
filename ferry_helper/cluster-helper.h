@@ -419,6 +419,7 @@ namespace Clustering { // TODO Implement more
         double maxCost = 0;
         double minCost = std::numeric_limits<double>::max();
         double totalCost = 0;
+        double exceedCap = 0;
         double penalty = 0;
         for (uint32_t i = 0; i < clusters.size(); i++) {
             if (clusters[i].size() == 0) {
@@ -432,14 +433,17 @@ namespace Clustering { // TODO Implement more
                 point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
                 minInsertCost = std::min(minInsertCost, dist(a, cannidateHub) + dist(b, cannidateHub) - dist(a, b));
             }
-
-            maxCost = std::max(maxCost, cost[i] + minInsertCost);
-            minCost = std::min(minCost, cost[i] + minInsertCost);
-            totalCost += cost[i] + minInsertCost;
+            cost[i] += minInsertCost;
+            maxCost = std::max(maxCost, cost[i]);
+            minCost = std::min(minCost, cost[i]);
+            totalCost += cost[i];
+            if (cost[i] > BMTC_routeLengthCap) {
+                exceedCap += cost[i] - BMTC_routeLengthCap;
+            }
         }
         // minimizing maxCost, totalcost, penalty
         // maximizing mincost
-        return maxCost + 0.1 * totalCost / (double)clusters.size() - 0.01 * minCost + penalty;
+        return maxCost + 0.1 * (totalCost + exceedCap) / (double)clusters.size() - 0.01 * minCost + penalty;
     }
 
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {

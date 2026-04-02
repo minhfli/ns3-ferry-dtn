@@ -672,16 +672,13 @@ void BaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
         if (topHeader.GetNodeIP() == m_myIp) continue;
         NS_LOG_UNCOND(Simulator::Now().GetSeconds() << "s Node " << nodeId[m_myIp.Get()] << " Receive " << topHeader.GetMetaName() << " from " << nodeId[topHeader.GetNodeIP().Get()]);
 
-
         auto packetType = topHeader.GetType();
 
         if (packetType == MessageTypeHeader::FERRY_BEACON) {
             OnReceiveBeacon(topHeader.GetNodeIP(), packet);
         }
-        else {
-            uint64_t currentTime = Simulator::Now().GetMicroSeconds();
-            m_neighbor[topHeader.GetNodeIP().Get()].lastContactTime = currentTime;
-        }
+        uint64_t currentTime = Simulator::Now().GetMicroSeconds();
+        m_neighbor[topHeader.GetNodeIP().Get()].lastContactTime = currentTime;
 
         if (packetType == MessageTypeHeader::GROUND_HELLO) {
             OnFerryReceiveGroundHello(topHeader.GetNodeIP(), packet);
@@ -720,10 +717,8 @@ void BaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_neighbor.find(source) != m_neighbor.end() &&  // not a new neighbor
         currentTime - m_neighbor[source].lastContactTime < config.contactTimeout) // still in contact
     {
-        m_neighbor[source].lastContactTime = currentTime; // không bắt đầu trao đổi, nhưng vẫn cập nhật last contact time
         return;
     }
-    m_neighbor[source].lastContactTime = currentTime;
 
     OnGroundReceiveBeacon(sourceIp, packet);
     OnFerryReceiveBeacon(sourceIp, packet);
