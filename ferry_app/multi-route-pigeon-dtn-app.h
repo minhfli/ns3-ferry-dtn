@@ -18,7 +18,7 @@ namespace MRDLAS {
         ferryRoutes.resize(config.nGrounds + 1);
 
         for (uint32_t g = 0; g < config.nGrounds; g++) {
-            auto route = TSPHelperNoTwoOpt(
+            auto route = TSPHelper(
                 groundNodePos,
                 (std::set<uint32_t>) {
                 g
@@ -133,10 +133,9 @@ void MultiRouteDeadlineAwareShortcutDtnApp::InitializeMobility(const std::vector
 
 void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
     RemoveExpiredBundles();
-    auto deadlines = GetDeadlines();
 
-    uint32_t dlval1 = 0; // best deadline sastified if go to next waypoint and follow the best pigeon route
-    uint32_t dlval2 = 0; // best deadline sastified if start pigeon route now
+    double dlval1 = 0; // best deadline sastified if go to next waypoint and follow the best pigeon route
+    double dlval2 = 0; // best deadline sastified if start pigeon route now
     double currentTime = Simulator::Now().GetSeconds();
     Vector3D currentPos = m_mobility->GetPosition();
 
@@ -151,25 +150,51 @@ void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                              nextFerryPos.y - currentPos.y };
         double distance = relative.length();
         double timeToReach = distance / config.ferrySpeed;
-        auto route1 = TSPDeadlineHelper(groundNodePos, deadlines,
-            nextFerryPos,
-            currentTime + timeToReach,
-            config.ferrySpeed,
-            config.hoverTime,
-            &dlval1,
-            80, 1000
-        );
-        auto route2 = TSPDeadlineHelper(groundNodePos, deadlines,
-            { currentPos.x, currentPos.y },
-            currentTime,
-            config.ferrySpeed,
-            config.hoverTime,
-            &dlval2,
-            80, 1000
-        );
-        dlval1 = m_buffer.size() - dlval1;
-        dlval2 = m_buffer.size() - dlval2;
-
+        std::vector<uint32_t> route1, route2;
+        if (config.MRDLAS_weightedDeadline == false) { // all bundle have the same weight of 1
+            auto deadlines = GetDeadlines();
+            uint32_t cost1, cost2;
+            route1 = TSPDeadlineHelper(groundNodePos, deadlines,
+               nextFerryPos,
+               currentTime + timeToReach,
+               config.ferrySpeed,
+               config.hoverTime,
+               &cost1,
+               80, 1000
+            );
+            route2 = TSPDeadlineHelper(groundNodePos, deadlines,
+               { currentPos.x, currentPos.y },
+               currentTime,
+               config.ferrySpeed,
+               config.hoverTime,
+               &cost2,
+               80, 1000
+            );
+            dlval1 = m_buffer.size() - cost1;
+            dlval2 = m_buffer.size() - cost2;
+        }
+        else { // a bundle will have a weight of distance between its source and destination node
+            auto weightedDeadlines = GetWeightedDeadlines();
+            double cost1, cost2;
+            route1 = TSPWeightedDeadlineHelper(groundNodePos, weightedDeadlines,
+               nextFerryPos,
+               currentTime + timeToReach,
+               config.ferrySpeed,
+               config.hoverTime,
+               &cost1,
+               80, 1000
+            );
+            route2 = TSPWeightedDeadlineHelper(groundNodePos, weightedDeadlines,
+               { currentPos.x, currentPos.y },
+               currentTime,
+               config.ferrySpeed,
+               config.hoverTime,
+               &cost2,
+               80, 1000
+            );
+            dlval1 = -cost1;
+            dlval2 = -cost2;
+        }
         if (dlval2 > 0) {
             uint32_t nextFerryNode = groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get();
             uint32_t firstPigeonNode = groundNodeIps[route2[0]].Get();

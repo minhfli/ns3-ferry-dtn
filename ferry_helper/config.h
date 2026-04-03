@@ -107,6 +107,8 @@ struct Config {
     bool SR_PIGEON_V2_addlvt = false; // add time since last visit value to node score calculation
     bool SR_PIGEON_V2_vtModePredict = true; //   
 
+    bool TABAF_weightedDeadline = false;
+
     bool TABADLA_addBundleValue = false;
     uint32_t TABADLA_topK = 10;
 
@@ -191,6 +193,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("RPDLAS_pruneMode", "RPDLAS prune mode", config.RPDLAS_pruneMode);
     cmd.AddValue("MRDLAS_routeMode", "MRDLAS route mode", config.MRDLAS_routeMode);
     cmd.AddValue("MRDLAS_weightedDeadline", "MRDLAS weighted deadline", config.MRDLAS_weightedDeadline);
+    cmd.AddValue("TABAF_weightedDeadline", "TABAF weighted deadline", config.TABAF_weightedDeadline);
     cmd.AddValue("DRC_graphMode", "DRC graph mode", config.DRC_graphMode);
     cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
     cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);

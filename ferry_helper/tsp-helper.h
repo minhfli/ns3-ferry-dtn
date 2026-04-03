@@ -331,11 +331,6 @@ FerryRoute TwoOpt(FerryRoute route) {
 
 #pragma region "DEADLINE TSP"
 
-struct TSPDeadlineItem {
-    double time;
-    double weight = 1;
-};
-
 uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
     const std::vector<point2D>& points,
     const std::vector<std::vector<double>>& deadlines,
@@ -367,40 +362,6 @@ uint32_t ComputeDeadlineCost(const std::vector<uint32_t>& order,
 
     return cost;
 }
-
-uint32_t ComputeWeightedDeadlineCost(const std::vector<uint32_t>& order,
-    const std::vector<point2D>& points,
-    const std::vector<std::vector<TSPDeadlineItem>>& deadlines,
-    const point2D starting_pos,
-    const double starting_time,
-    const double speed,
-    const double hoverTime
-) {
-    uint32_t cost = 0;
-    double currentTime = starting_time;
-    point2D currentPos = starting_pos;
-    for (size_t i = 0; i < order.size(); ++i) {
-        point2D nextPos = points[order[i]];
-        double distance = dist(currentPos, nextPos);
-        double travelTime = distance / speed;
-        currentTime += travelTime;
-
-        // check deadlines
-        for (auto deadline : deadlines[order[i]]) {
-            if (currentTime <= deadline.time) {
-                cost -= deadline.weight;
-            }
-        }
-        currentTime += hoverTime;
-
-        currentPos = nextPos;
-    }
-    // NS_LOG_UNCOND("Hello?");
-
-    return cost;
-}
-
-
 
 /**
  * Find a route that go through all the points so that the most of deadlines are sastisfied
@@ -538,6 +499,172 @@ std::vector<uint32_t> TSPDeadlineHelper(
     order = TSPDeadlineBasedTwoOptOptimize(points, deadlines, starting_pos, starting_time, speed, hoverTime, order, best_cost);
     return order;
 }
+#pragma endregion
+
+#pragma region "WEIGHTED DEADLINE"
+double ComputeWeightedDeadlineCost(const std::vector<uint32_t>& order,
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<WeightedDeadline>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    const double hoverTime
+) {
+    double cost = 0;
+    double currentTime = starting_time;
+    point2D currentPos = starting_pos;
+    for (size_t i = 0; i < order.size(); ++i) {
+        point2D nextPos = points[order[i]];
+        double distance = dist(currentPos, nextPos);
+        double travelTime = distance / speed;
+        currentTime += travelTime;
+
+        // check deadlines
+        for (auto deadline : deadlines[order[i]]) {
+            if (currentTime <= deadline.time) {
+                cost -= deadline.weight; // reward
+            }
+        }
+        currentTime += hoverTime;
+        currentPos = nextPos;
+    }
+    // NS_LOG_UNCOND("Hello?");
+
+    return cost;
+}
+std::vector<uint32_t> TSPWeightedDeadlineGA(
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<WeightedDeadline>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    const double hoverTime,
+    const uint32_t population_size = 100,
+    const uint32_t max_generation = 2000,
+    double* best_cost = nullptr
+) {
+    uint32_t POP_SIZE = population_size; // population size
+    uint32_t MAX_GEN = max_generation; // max number of generation
+    const uint32_t GEN_LOG_ITER = 1000;
+    const double MUT_PROB = 0.2;
+    const uint32_t ELITE = 20;
+
+    NS_LOG_UNCOND("TSP Deadline Based GA");
+
+    std::mt19937 gen(1337); //! MAGIC NUMBER - Fixed seed
+
+    std::vector<uint32_t> baseOrder;
+    for (size_t i = 0; i < points.size(); i++) {
+        if (deadlines[i].size() > 0) { // this node have some deadlines
+            baseOrder.push_back(i);
+        }
+    }
+
+    if (baseOrder.size() == 0) {
+        return baseOrder;
+    }
+
+    std::vector<TSPSolution> population(POP_SIZE);
+    for (TSPSolution& sol : population) {
+        sol.order = baseOrder;
+        std::shuffle(sol.order.begin(), sol.order.end(), gen);
+        sol.cost = ComputeWeightedDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
+    }
+    std::sort(population.begin(), population.end());
+
+    for (uint32_t generation = 0; generation <= MAX_GEN; ++generation) {
+        std::vector<TSPSolution> new_population;
+        for (uint32_t i = 0; i < ELITE; ++i) {
+            new_population.push_back(population[i]);
+        }
+        while (new_population.size() < POP_SIZE) {
+            int id1 = rand() % POP_SIZE;
+            int id2 = rand() % POP_SIZE;
+            TSPSolution sol;
+            sol.order = OrderCrossover(population[id1].order, population[id2].order, gen);
+            SwapMutation(sol.order, gen, MUT_PROB);
+            sol.cost = ComputeWeightedDeadlineCost(sol.order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
+            new_population.push_back(sol);
+        }
+        std::swap(population, new_population); // faster than assignment
+        std::sort(population.begin(), population.end());
+        if (generation % GEN_LOG_ITER == 0) {
+            NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
+        }
+    }
+    if (best_cost != nullptr) {
+        *best_cost = population[0].cost;
+    }
+    return population[0].order;
+
+}
+
+std::vector<uint32_t> TSPWeightedDeadlineTwoOpt(
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<WeightedDeadline>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    const double hoverTime,
+    const std::vector<uint32_t>& baseOrder,
+    double* best_cost = nullptr
+) {
+    if (baseOrder.size() <= 1) {
+        return baseOrder;
+    }
+
+    std::vector<uint32_t> order = baseOrder;
+    double bestCost = ComputeWeightedDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
+    bool improve = true;
+
+    while (improve) {
+        improve = false;
+        for (size_t i = 0; i < order.size() - 1; ++i) {
+            for (size_t j = i + 1; j < order.size(); ++j) {
+                std::reverse(order.begin() + i, order.begin() + j + 1);
+                double newCost = ComputeWeightedDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
+                if (newCost < bestCost - 0.001) {
+                    bestCost = newCost;
+                    improve = true;
+                }
+                else {
+                    std::reverse(order.begin() + i, order.begin() + j + 1);
+                }
+                std::swap(order[i], order[j]);
+                newCost = ComputeWeightedDeadlineCost(order, points, deadlines, starting_pos, starting_time, speed, hoverTime);
+                if (newCost < bestCost) {
+                    bestCost = newCost;
+                    improve = true;
+                }
+                else {
+                    std::swap(order[i], order[j]);
+                }
+            }
+        }
+    }
+    if (best_cost != nullptr) {
+        *best_cost = bestCost;
+    }
+    return order;
+}
+
+std::vector<uint32_t> TSPWeightedDeadlineHelper(
+    const std::vector<point2D>& points,
+    const std::vector<std::vector<WeightedDeadline>>& deadlines,
+    const point2D starting_pos,
+    const double starting_time,
+    const double speed,
+    const double hoverTime,
+    double* best_cost = nullptr,
+    const uint32_t population_size = 100,
+    const uint32_t max_generation = 2000
+) {
+    std::vector<uint32_t> order = TSPWeightedDeadlineGA(points, deadlines, starting_pos, starting_time, speed, hoverTime, population_size, max_generation);
+    order = TSPWeightedDeadlineTwoOpt(points, deadlines, starting_pos, starting_time, speed, hoverTime, order, best_cost);
+    return order;
+}
+
+
 #pragma endregion
 
 #endif

@@ -50,6 +50,12 @@ struct waypoint2D {
 
 typedef std::vector<waypoint2D> FerryRoute;
 
+struct WeightedDeadline {
+    WeightedDeadline(double w, double t) : weight(w), time(t) {}
+    double weight;
+    double time;
+};
+
 struct color {
     int r;
     int g;

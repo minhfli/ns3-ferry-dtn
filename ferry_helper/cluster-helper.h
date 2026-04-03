@@ -385,6 +385,51 @@ namespace Clustering { // TODO Implement more
         return route;
     }
 
+    double BMTC_ComputeCost_wFixedHub(ClusterSolution clusters, const std::vector<point2D>& points, point2D hubPos, double emptyClusterPenalty = 2000) {
+        uint32_t validClusters = 0;
+        std::vector<double> cost(clusters.size(), 0);
+
+        // compute tsp cost
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            if (clusters[i].size() > 0) {
+                validClusters++;
+                clusters[i] = BMTC_TSP_helper(clusters[i], points);
+                cost[i] = ComputeTSPCost(clusters[i], points);
+                cost[i] += config.ferrySpeed * config.hoverTime * clusters[i].size();
+            }
+        }
+
+        // tìm max cost
+        double maxCost = 0;
+        double minCost = std::numeric_limits<double>::max();
+        double totalCost = 0;
+        double exceedCap = 0;
+        double penalty = 0;
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            if (clusters[i].size() == 0) {
+                minCost = 0;
+                penalty += emptyClusterPenalty;
+                continue;
+            }
+            double minInsertCost = std::numeric_limits<double>::max();
+            for (uint32_t j = 0; j < clusters[i].size(); j++) {
+                point2D a = points[clusters[i][j]];
+                point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
+                minInsertCost = std::min(minInsertCost, dist(a, hubPos) + dist(b, hubPos) - dist(a, b));
+            }
+            cost[i] += minInsertCost;
+            maxCost = std::max(maxCost, cost[i]);
+            minCost = std::min(minCost, cost[i]);
+            totalCost += cost[i];
+            if (cost[i] > BMTC_routeLengthCap) {
+                exceedCap += cost[i] - BMTC_routeLengthCap;
+            }
+        }
+        // minimizing maxCost, totalcost, penalty
+        // maximizing mincost
+        return maxCost + 0.1 * (totalCost + exceedCap) / (double)clusters.size() - 0.01 * minCost + penalty;
+    }
+
     double BMTC_ComputeCost(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, bool extraOptimized = false, double emptyClusterPenalty = 2000) {
 
         uint32_t validClusters = 0;
@@ -445,7 +490,6 @@ namespace Clustering { // TODO Implement more
         // maximizing mincost
         return maxCost + 0.1 * (totalCost + exceedCap) / (double)clusters.size() - 0.01 * minCost + penalty;
     }
-
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {
         // Tìm empty clusters 
         for (uint32_t i = 0; i < k; i++) {
@@ -537,6 +581,66 @@ namespace Clustering { // TODO Implement more
         return bestClusters;
     }
 
+    ClusterSolution BMTC_localSearch_fixedHub(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k, point2D hubPos) {
+        bool improved = true;
+        ClusterSolution bestClusters = baseClusters;
+        double currentBestCost = BMTC_ComputeCost_wFixedHub(bestClusters, points, hubPos);
+
+        while (improved) {
+            improved = false;
+
+            // --- MOVE : Di chuyển 1 điểm ---
+            for (uint32_t i = 0; i < k && !improved; ++i) {
+                for (size_t p_idx = 0; p_idx < bestClusters[i].size(); ++p_idx) {
+                    uint32_t pointID = bestClusters[i][p_idx];
+
+                    for (uint32_t j = 0; j < k; ++j) {
+                        if (i == j) continue;
+
+                        ClusterSolution temp = bestClusters;
+                        temp[i].erase(temp[i].begin() + p_idx);
+                        temp[j].push_back(pointID);
+
+                        double newCost = BMTC_ComputeCost_wFixedHub(temp, points, hubPos);
+                        if (newCost < currentBestCost - 1e-6) {
+                            currentBestCost = newCost;
+                            bestClusters = temp;
+                            improved = true;
+                            break;
+                        }
+                    }
+                    if (improved) break;
+                }
+            }
+
+            if (improved) continue; // Nếu Move đã giúp cải thiện, lặp lại vòng lặp chính ngay
+
+            // --- SWAP : Hoán đổi 2 điểm giữa 2 cụm ---
+            for (uint32_t i = 0; i < k && !improved; ++i) {
+                for (uint32_t j = i + 1; j < k && !improved; ++j) {
+                    for (size_t p1_idx = 0; p1_idx < bestClusters[i].size(); ++p1_idx) {
+                        for (size_t p2_idx = 0; p2_idx < bestClusters[j].size(); ++p2_idx) {
+
+                            ClusterSolution temp = bestClusters;
+                            std::swap(temp[i][p1_idx], temp[j][p2_idx]);
+
+                            double newCost = BMTC_ComputeCost(temp, points, nullptr, true);
+                            if (newCost < currentBestCost - 1e-6) {
+                                currentBestCost = newCost;
+                                bestClusters = temp;
+                                improved = true;
+                                break;
+                            }
+                        }
+                        if (improved) break;
+                    }
+                }
+            }
+        }
+        NS_LOG_UNCOND("Balanced mTSP with Center Clustering - LS - best cost: " << currentBestCost);
+        return bestClusters;
+    }
+
     ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 200;
         BMTC_routeLengthCap = expectedRouteLengthCap;
@@ -573,6 +677,45 @@ namespace Clustering { // TODO Implement more
 
         point2D hubPos;
         BMTC_ComputeCost(population[0].GetCluster(), points, &hubPos);
+
+        auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
+        clusters = BMTC_localSearch(points, clusters, k);
+        return clusters;
+    }
+
+    ClusterSolution BalancedMT_fixedHub_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, point2D hubPos, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+        uint32_t LOG_ITERATION = 200;
+        BMTC_routeLengthCap = expectedRouteLengthCap;
+        NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA");
+        // generate initial population
+        std::vector<BMTC_GA_Chromosome> population(population_size);
+        for (uint32_t i = 0; i < population_size; i++) {
+            for (uint32_t j = 0; j < points.size(); j++) {
+                population[i].mask.push_back(rand() % k);
+            }
+            population[i].clusterCount = k;
+            population[i].cost = BMTC_ComputeCost_wFixedHub(population[i].GetCluster(), points, hubPos);
+        }
+        std::sort(population.begin(), population.end());
+
+        for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
+            std::vector<BMTC_GA_Chromosome> new_population;
+            for (uint32_t i = 0; i < population_size / 2; i++) {
+                auto [p1, p2] = BMTC_GA_Chromosome::Crossover(population[i], population[i + 1]);
+                p1 = BMTC_GA_Chromosome::Mutate(p1);
+                p2 = BMTC_GA_Chromosome::Mutate(p2);
+                p1.cost = BMTC_ComputeCost_wFixedHub(p1.GetCluster(), points, hubPos);
+                p2.cost = BMTC_ComputeCost_wFixedHub(p2.GetCluster(), points, hubPos);
+                new_population.push_back(p1);
+                new_population.push_back(p2);
+            }
+            population.insert(population.end(), new_population.begin(), new_population.end());
+            std::sort(population.begin(), population.end());
+            population.resize(population_size);
+            if (generation % LOG_ITERATION == 0) {
+                NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
+            }
+        }
 
         auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
         clusters = BMTC_localSearch(points, clusters, k);

@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 762227828,
-    "name": "PIGEON", # algorithm name
+    "name": "TABAF", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug2", # run name for log file
@@ -15,6 +15,8 @@ params = {
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
     "waypointSelectMode" :"DETERMINISTIC",
+    "MRDLAS_weightedDeadline": True,
+    "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     #* default config
@@ -22,7 +24,7 @@ params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "nGrounds": 45,
-    "nFerrys": 10,
+    "nFerrys": 5,
     "ferrySpeed": 12,
     "groundBufferSize": 1000,
     "ferryBufferSize": 500,

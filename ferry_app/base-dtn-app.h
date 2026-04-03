@@ -97,6 +97,7 @@ class BaseDtnApp : public Application {
     std::map<uint32_t, uint32_t> GetBundleCount() const;
     // Lấy danh sách deadline của từng node index
     std::vector<std::vector<double>> GetDeadlines();
+    std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
 
@@ -310,6 +311,20 @@ std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
         double dl = bundle.creationTime + config.bundleTTL; //microsec
         dl /= 1000000.0;
         deadlines[node].push_back(dl);
+    }
+    return deadlines;
+}
+std::vector<std::vector<WeightedDeadline>> BaseDtnApp::GetWeightedDeadlines() {
+    RemoveExpiredBundles();
+    std::vector<std::vector<WeightedDeadline>> deadlines;
+    deadlines.resize(config.nGrounds);
+    for (auto bundle : m_buffer) {
+        uint32_t node = rawNodeId(bundle.destination.Get());
+        double dl = bundle.creationTime + config.bundleTTL; //microsec
+        dl /= 1000000.0;
+        point2D A = nodePos(bundle.source.Get());
+        point2D B = nodePos(bundle.destination.Get());
+        deadlines[node].push_back({ dist(A,B), dl });
     }
     return deadlines;
 }

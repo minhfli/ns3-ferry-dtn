@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": False, # skip if already run
+    "skip": True, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -46,7 +46,7 @@ base_params = {
 
 param_grid = { # change or set to default grid for custom run
     # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
-    "name": [ "PIGEON", "MRDLAS"],
+    "name": ["MRDLAS"],
     # "name": [ "VHUB", "HUB","CHUB"],
 
     "nGrounds": [45],
@@ -97,6 +97,10 @@ algo_variants= {
         "DWS": {
             "waypointSelectMode": "DETERMINISTIC",
         },  
+        # "Weighted":{
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "MRDLAS_weightedDeadline": True,
+        # }
     },
     "TABADLA": {
         # "default": { # previous run show that this is not good
@@ -215,7 +219,7 @@ algo_variants= {
 }
 
 N_SEEDS = 5
-MAX_WORKERS = 7
+MAX_WORKERS = 8
 
 # ============================================================
 # Global states cho Multithreading & Signal Handling

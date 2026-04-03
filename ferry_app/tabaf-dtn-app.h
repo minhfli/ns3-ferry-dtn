@@ -45,7 +45,7 @@ class TabafDtnApp : public BaseDtnApp {
 NS_OBJECT_ENSURE_REGISTERED(TabafDtnApp);
 
 void TabafDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) {
-    m_nodeScore.resize(servingNodesIndex.size(), 0.0);
+    m_nodeScore.resize(config.nGrounds, 0);
     Simulator::Schedule(Seconds(0), &TabafDtnApp::ScheduleNextWaypoint, this);
 }
 
@@ -82,11 +82,19 @@ void TabafDtnApp::ScheduleNextWaypoint() {
 void TabafDtnApp::CalculateNodeScore() {
     RemoveExpiredBundles();
 
-    std::map<uint32_t, uint32_t> bundleCountMap = GetBundleCount();
-    uint32_t maxCount = std::max_element(bundleCountMap.begin(), bundleCountMap.end(),
-         [](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
-             return a.second < b.second;
-    })->second;
+    for (uint32_t i = 0; i < config.nGrounds; i++)
+        m_nodeScore[i] = 0;
+
+    for (Bundle& bundle : m_buffer) {
+        if (config.TABAF_weightedDeadline) {
+            m_nodeScore[rawNodeId(bundle.destination.Get())] +=
+                dist(nodePos(bundle.source.Get()), nodePos(bundle.destination.Get()));
+        }
+        else {
+            m_nodeScore[rawNodeId(bundle.destination.Get())] += 1; // temporary set node score to count of bundles to it
+        }
+    }
+    double maxBundleValue = *std::max_element(m_nodeScore.begin(), m_nodeScore.end());
 
     for (uint32_t i = 0; i < config.nGrounds; i++) {
         Vector3D currentPos = m_mobility->GetPosition();
@@ -107,9 +115,8 @@ void TabafDtnApp::CalculateNodeScore() {
         }
 
         double bundleValue = 0;
-        if (maxCount != 0 && bundleCountMap.find(groundNodeIps[i].Get()) != bundleCountMap.end()) {
-            bundleValue = (double)bundleCountMap[groundNodeIps[i].Get()] / maxCount;
-        }
+        if (maxBundleValue > 0)
+            bundleValue = m_nodeScore[i] / maxBundleValue;
 
         m_nodeScore[i] = (timeValue + bundleValue) / dist;
     }
