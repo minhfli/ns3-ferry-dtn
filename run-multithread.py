@@ -220,6 +220,12 @@ algo_variants= {
             "CHUB_virtualHub": True,
             "CHUB_routeExtend": True,
         },
+        "routeExtend_v2": {
+            "warmupTime": 500,
+            "CHUB_virtualHub": True,
+            "CHUB_routeExtend": True,
+            "CHUB_reWait": True,
+        },
     },
 }
 

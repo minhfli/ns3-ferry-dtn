@@ -19,6 +19,7 @@ namespace CHUB {
     Graph m_connectGraph;
     std::vector<std::vector<uint32_t>> m_groupDistance;
     std::vector<FerryRoute> m_routes;
+    double m_maxRouteLength;
     std::vector<double> m_routeLength;
     std::vector<double> m_scheduledMeetingTime;
     point2D m_hubPos;
@@ -134,10 +135,10 @@ namespace CHUB {
             }
             m_routeLength[i] += m_routes[i].size() * config.hoverTime * config.ferrySpeed;
         }
-        double maxRouteLength = *std::max_element(m_routeLength.begin(), m_routeLength.end());
+        m_maxRouteLength = *std::max_element(m_routeLength.begin(), m_routeLength.end());
         m_scheduledMeetingTime.push_back(config.warmupTime);
         while (m_scheduledMeetingTime.back() < config.warmupTime + config.simTime) {
-            m_scheduledMeetingTime.push_back(m_scheduledMeetingTime.back() + maxRouteLength / config.ferrySpeed + 0.1);
+            m_scheduledMeetingTime.push_back(m_scheduledMeetingTime.back() + m_maxRouteLength / config.ferrySpeed + 0.1);
         }
     }
 
@@ -201,6 +202,8 @@ class HubBasedClusteringDtnApp : public BaseDtnApp {
 
     private:
     uint32_t m_nextWaypointIndex;
+    uint32_t m_lastFerryIndex;
+    double m_maxLastWaitTime;
     int m_direction;
     FerryRoute m_ferryRoute;
     bool m_reachedFirstWaypoint = false;
@@ -213,7 +216,16 @@ NS_OBJECT_ENSURE_REGISTERED(HubBasedClusteringDtnApp);
 void HubBasedClusteringDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) {
     m_direction = 1;
     m_ferryRoute = CHUB::AssignRoute();
-    m_nextWaypointIndex = -1;
+    m_nextWaypointIndex = m_ferryRoute.size() - 1;
+
+    // Index Vị trí cuối cùng của trong lộ trình của ferry trước khi đi theo route extend hoặc quay trở về hub
+    m_lastFerryIndex = CHUB::m_clusters.size(); // index cuối cùng đi theo route thường + 1 (hubpos)
+    m_maxLastWaitTime = 0;
+    if (config.CHUB_reWait) {
+        double deltaLength = CHUB::m_maxRouteLength - CHUB::m_routeLength[(int)m_groupId];
+        m_maxLastWaitTime = deltaLength / config.ferrySpeed - 1;
+        if (m_maxLastWaitTime < 0) m_maxLastWaitTime = 0;
+    }
 
     Simulator::Schedule(Seconds(0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
 }
@@ -228,7 +240,7 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         }
     }
 
-    if (m_reachedFirstWaypoint && config.CHUB_virtualHub && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+    if (m_reachedFirstWaypoint && config.CHUB_virtualHub && m_nextWaypointIndex == 0) { // hiện uav đang ở hub
         // Chỉ wait với chế độ virtual hub
         if (!m_waited) {
             m_waited = true;
@@ -241,6 +253,21 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         else {
             m_scheduledMeetingTimeIndex++;
             m_waited = false;
+        }
+    }
+
+    if (config.CHUB_reWait && m_nextWaypointIndex == m_lastFerryIndex) {
+        // Chờ ở điểm cuối cùng trong lộ trình ferry trước khi về hub hoặc đi theo lộ trình mở rộng
+        if (m_maxLastWaitTime > 0) {
+            if (!m_waited) {
+                m_waited = true;
+                m_mobility->SetVelocity(Vector(0.0, 0.0, 0.0));
+                Simulator::Schedule(Seconds(m_maxLastWaitTime), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
+                return;
+            }
+            else {
+                m_waited = false;
+            }
         }
     }
 

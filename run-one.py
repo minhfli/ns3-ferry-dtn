@@ -8,7 +8,7 @@ params = {
     "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "testRE", # run name for log file
+    "run": "testRE2", # run name for log file
     "simTime": 10000,
     "warmupTime": 500,
     "hoverTime": 5,
@@ -22,6 +22,7 @@ params = {
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     "CHUB_routeExtend": True,
+    "CHUB_reWait": True,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,

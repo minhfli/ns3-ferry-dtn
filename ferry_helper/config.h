@@ -131,6 +131,8 @@ struct Config {
 
     bool CHUB_virtualHub = true;
     bool CHUB_routeExtend = false;
+    bool CHUB_reWait = false;
+
 
 } config;
 
@@ -199,7 +201,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
     cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);
     cmd.AddValue("CHUB_routeExtend", "Use route extension", config.CHUB_routeExtend);
-
+    cmd.AddValue("CHUB_reWait", "Use re-wait", config.CHUB_reWait);
 
     cmd.Parse(argc, argv);
     return;
