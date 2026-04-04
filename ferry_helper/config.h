@@ -130,6 +130,7 @@ struct Config {
     uint32_t HUB_nHubs = 1;
 
     bool CHUB_virtualHub = true;
+    bool CHUB_routeExtend = false;
 
 } config;
 
@@ -197,6 +198,8 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("DRC_graphMode", "DRC graph mode", config.DRC_graphMode);
     cmd.AddValue("HUB_nHubs", "Number of hubs", config.HUB_nHubs);
     cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);
+    cmd.AddValue("CHUB_routeExtend", "Use route extension", config.CHUB_routeExtend);
+
 
     cmd.Parse(argc, argv);
     return;

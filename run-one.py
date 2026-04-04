@@ -5,13 +5,15 @@ PROGRAM = "ferry"
 
 params = {
     "seed": 762227828,
-    "name": "TABAF", # algorithm name
+    "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug2", # run name for log file
-    "simTime": 15000,
+    "run": "testRE", # run name for log file
+    "simTime": 10000,
     "warmupTime": 500,
     "hoverTime": 5,
+    "nGrounds": 45,
+    "nFerrys": 12,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
     "waypointSelectMode" :"DETERMINISTIC",
@@ -19,12 +21,11 @@ params = {
     "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
+    "CHUB_routeExtend": True,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
-    "nGrounds": 45,
-    "nFerrys": 5,
     "ferrySpeed": 12,
     "groundBufferSize": 1000,
     "ferryBufferSize": 500,

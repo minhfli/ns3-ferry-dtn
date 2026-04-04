@@ -46,7 +46,7 @@ base_params = {
 
 param_grid = { # change or set to default grid for custom run
     # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
-    "name": ["MRDLAS"],
+    "name": ["CHUB"],
     # "name": [ "VHUB", "HUB","CHUB"],
 
     "nGrounds": [45],
@@ -215,6 +215,11 @@ algo_variants= {
         #     "warmupTime": 500,
         #     "CHUB_virtualHub": False,
         # },
+        "routeExtend": {
+            "warmupTime": 500,
+            "CHUB_virtualHub": True,
+            "CHUB_routeExtend": True,
+        },
     },
 }
 

@@ -642,7 +642,7 @@ namespace Clustering { // TODO Implement more
     }
 
     ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
-        uint32_t LOG_ITERATION = 200;
+        uint32_t LOG_ITERATION = 1000;
         BMTC_routeLengthCap = expectedRouteLengthCap;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA");
         // generate initial population
@@ -723,8 +723,208 @@ namespace Clustering { // TODO Implement more
     }
 
 
-    ClusterSolution BMTC_routeExtend(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k) { // TODO
-        return baseClusters;
+    struct BMTC_routeExtendSolution {
+        std::vector<uint32_t> order;
+        double reward = 0;
+        bool operator<(const BMTC_routeExtendSolution& other) const {
+            return reward < other.reward;
+        }
+        bool operator>(const BMTC_routeExtendSolution& other) const {
+            return reward > other.reward;
+        }
+        static BMTC_routeExtendSolution swapNeighbor(BMTC_routeExtendSolution solution, uint32_t step = 2) {
+            uint32_t n = solution.order.size();
+            while (step--) {
+                uint32_t i = rand() % n;
+                uint32_t j = rand() % n;
+                std::swap(solution.order[i], solution.order[j]);
+            }
+            return solution;
+        }
+        static BMTC_routeExtendSolution reverseNeighbor(BMTC_routeExtendSolution solution, uint32_t step = 1) {
+            uint32_t n = solution.order.size();
+            while (step--) {
+                uint32_t i = rand() % n;
+                uint32_t j = rand() % n;
+                if (i > j) std::swap(i, j);
+                std::reverse(solution.order.begin() + i, solution.order.begin() + j + 1);
+            }
+            return solution;
+        }
+
+    };
+    double BMTC_RE_computeReward(
+        const BMTC_routeExtendSolution& solution,
+        const std::vector<point2D>& points,
+        const ClusterSolution& baseClusters,
+        const point2D hubPos,
+        const std::vector<double>& rewards,
+        const double routelengthCap
+    ) {
+        double reward = 0;
+        std::set<uint32_t> added;
+        for (auto& cluster : baseClusters) {
+            if (cluster.size() == 0) continue;
+            // Tính độ dài lộ trình của cluster, bỏ qua hubpos ở cuối cùng
+            double routeLength = dist(hubPos, points[cluster[0]]);
+            for (uint32_t i = 0; i < cluster.size() - 1; i++) {
+                routeLength += dist(points[cluster[i]], points[cluster[i + 1]]);
+                routeLength += config.ferrySpeed * config.hoverTime;
+            }
+
+            point2D lastPoint = points[cluster[cluster.size() - 1]];
+
+            // Thêm các điểm một cách tham lam vào cuối lộ trình
+            for (auto node : solution.order) {
+                if (added.find(node) != added.end()) continue; // nút này đã được phục vụ
+                double addCost =
+                    dist(lastPoint, points[node]) + dist(points[node], hubPos)
+                    + 2 * config.ferrySpeed * config.hoverTime;
+
+                if (routeLength + addCost < routelengthCap - 0.001) {
+                    routeLength += dist(lastPoint, points[node]) + config.ferrySpeed * config.hoverTime;
+                    lastPoint = points[node];
+                    added.insert(node);
+                    reward += rewards[node];
+                }
+            }
+        }
+        double maxPossibleReward = 0;
+        for (auto r : rewards) {
+            maxPossibleReward += r;
+        }
+
+        return reward / maxPossibleReward;
+    }
+    ClusterSolution BMTC_RE_extend(
+    const BMTC_routeExtendSolution& solution,
+    const std::vector<point2D>& points,
+    const ClusterSolution& baseClusters,
+    const point2D hubPos,
+    const double routelengthCap
+    ) {
+        auto newCluster = baseClusters;
+        std::set<uint32_t> added;
+        for (auto& cluster : newCluster) {
+            if (cluster.size() == 0) continue;
+            // Tính độ dài lộ trình của cluster, bỏ qua hubpos ở cuối cùng
+            double routeLength = dist(hubPos, points[cluster[0]]) + config.ferrySpeed * config.hoverTime;
+            for (uint32_t i = 0; i < cluster.size() - 1; i++) {
+                routeLength += dist(points[cluster[i]], points[cluster[i + 1]]);
+                routeLength += config.ferrySpeed * config.hoverTime;
+            }
+
+            point2D lastPoint = points[cluster[cluster.size() - 1]];
+
+            // Thêm các điểm một cách tham lam vào cuối lộ trình
+            for (auto node : solution.order) {
+                if (added.find(node) != added.end()) continue; // nút này đã được phục vụ
+                double addCost =
+                    dist(lastPoint, points[node]) + dist(points[node], hubPos)
+                    + 2 * config.ferrySpeed * config.hoverTime;
+
+                if (routeLength + addCost < routelengthCap - 0.001) {
+                    routeLength += dist(lastPoint, points[node]) + config.ferrySpeed * config.hoverTime;
+                    lastPoint = points[node];
+                    added.insert(node);
+                    cluster.push_back(node);
+                }
+            }
+        }
+
+        return newCluster;
+    }
+
+    // Hàm SA hoàn chỉnh
+    ClusterSolution BMTC_routeExtend_SA(
+        const std::vector<point2D>& points,
+        const ClusterSolution& baseClusters,
+        const point2D hubPos,
+        // const double expectedRouteLengthCap,
+        uint32_t multi_start = 100,
+        double starting_temperature = 1.0,
+        double cooling = 0.99
+    ) {
+        uint32_t n = points.size();
+        uint32_t k = baseClusters.size();
+        if (n == 0) return baseClusters;
+
+        //* --- Tính reward cho từng điểm ---
+        std::vector<double> rewards(n, 0);
+        double maxRouteLength = 0;
+        for (auto cluster : baseClusters) {
+            double distance = 0;
+            point2D currentPos = hubPos;
+            for (auto pIdx : cluster) {
+                distance += dist(currentPos, points[pIdx]);
+                distance += config.ferrySpeed * config.hoverTime;
+                currentPos = points[pIdx];
+                rewards[pIdx] = distance; // Tạm đặt reward = khoảng cách từ hub đến nó trong một vòng lộ trình
+            }
+            distance += dist(currentPos, hubPos);
+            distance += config.ferrySpeed * config.hoverTime;
+            maxRouteLength = std::max(maxRouteLength, distance);
+        }
+        std::vector<uint32_t> baseOrder;
+        for (uint32_t i = 0; i < n; i++) {
+            // Reward = khoảng cách từ một điểm đến hub trong lộ trình ban đầu
+            rewards[i] = maxRouteLength / 2.0 - rewards[i];
+            if (rewards[i] < 0) rewards[i] = 0; // Chỉ xét các điểm mà khoảng cách từ nó đến hub > maxroute / 2
+            else baseOrder.push_back(i);
+        }
+        NS_LOG_UNCOND("Route length cap: " << maxRouteLength);
+        double expectedRouteLengthCap = maxRouteLength;
+        if (baseOrder.size() == 0) return baseClusters;
+
+        //* --- Simulated Anealing ---
+        std::mt19937 rng(rand());
+
+        BMTC_routeExtendSolution globalBestSolution;
+        globalBestSolution.reward = 0;
+
+        while (multi_start--) {
+            // Tạo lời giải ban đầu ngẫu nhiên cho mỗi lần start
+            BMTC_routeExtendSolution currentSolution;
+            currentSolution.order = baseOrder;
+            std::shuffle(currentSolution.order.begin(), currentSolution.order.end(), rng);
+
+            // Tính cost ban đầu
+            currentSolution.reward = BMTC_RE_computeReward(currentSolution, points, baseClusters, hubPos, rewards, expectedRouteLengthCap);
+
+            BMTC_routeExtendSolution localBest = currentSolution;
+            double T = starting_temperature;
+            double min_T = 0.001; // Ngưỡng dừng (đóng băng)
+
+            uint32_t iterations_per_temp = baseOrder.size() * k; // Số vòng lặp tại trước khi giảm nhiệt độ (Inner loop)
+
+            // SA
+            while (T > min_T) {
+                for (uint32_t i = 0; i < iterations_per_temp; i++) {
+
+                    BMTC_routeExtendSolution nextSolution = BMTC_routeExtendSolution::reverseNeighbor(currentSolution, 1);
+                    nextSolution.reward = BMTC_RE_computeReward(nextSolution, points, baseClusters, hubPos, rewards, expectedRouteLengthCap);
+
+                    double deltaR = nextSolution.reward - currentSolution.reward;
+
+                    // 1. Nếu Reward tăng (deltaR > 0): Chấp nhận ngay
+                    // 2. Nếu Reward giảm (deltaR < 0): Chấp nhận với xác suất Metropolis
+                    if (deltaR > 0 || (exp(deltaR / T) > (double)rand() / RAND_MAX)) {
+                        currentSolution = nextSolution;
+                        if (currentSolution.reward > localBest.reward) {
+                            localBest = currentSolution;
+                        }
+                    }
+                }
+                T *= cooling;
+            }
+            // Sau mỗi lần start, cập nhật lời giải tốt nhất toàn cục
+            if (localBest.reward > globalBestSolution.reward) {
+                globalBestSolution = localBest;
+            }
+            // NS_LOG_UNCOND("Attemp #" << multi_start << " - Best reward:" << globalBestSolution.reward);
+        }
+        NS_LOG_UNCOND("Route extend - Best reward:" << globalBestSolution.reward);
+        return BMTC_RE_extend(globalBestSolution, points, baseClusters, hubPos, expectedRouteLengthCap);
     }
 };
 #endif 

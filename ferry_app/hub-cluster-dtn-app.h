@@ -15,7 +15,7 @@
 #pragma region Setup
 namespace CHUB {
 
-    ClusterSolution m_clusters;
+    ClusterSolution m_clusters, m_extendedClusters;
     Graph m_connectGraph;
     std::vector<std::vector<uint32_t>> m_groupDistance;
     std::vector<FerryRoute> m_routes;
@@ -54,7 +54,7 @@ namespace CHUB {
                 continue;
             }
 
-            m_clusters[i] = TSPHelper(groundNodePos, m_clusters[i], 100, 2000);
+            m_clusters[i] = TSPHelper(groundNodePos, m_clusters[i], 100, 5000); // refine route
 
             double minInsertCost = std::numeric_limits<double>::max();
             uint32_t minInsertIndex = 0;
@@ -66,14 +66,47 @@ namespace CHUB {
                     minInsertIndex = j;
                 }
             }
+            // Nối lộ trình của UAV vào hub
             for (uint32_t j = 0; j < m_clusters[i].size(); j++) {
-                m_routes[i].push_back({ groundNodePos[m_clusters[i][j]],m_clusters[i][j], false });
+                m_routes[i].push_back({ groundNodePos[m_clusters[i][j]], m_clusters[i][j], false });
                 if (j == minInsertIndex) {
                     // điểm gặp mật tất cả ferry còn lại
                     m_routes[i].push_back({ m_hubPos, 0, true, DataStructureHelper::GetIndexVector(config.nFerrys) });
                 }
             }
+            // Tối ưu lại cho chắc
             m_routes[i] = TwoOpt(m_routes[i]);
+
+            // Xoay để điểm hub có index là 0
+            for (uint32_t j = 0; j < m_routes[i].size(); j++) {
+                if (m_routes[i][j].isRendezvous) {
+                    std::rotate(m_routes[i].begin(), m_routes[i].begin() + j, m_routes[i].end());
+                    break;
+                }
+            }
+            // Chọn hướng cho lộ trình, uav sẽ đi theo chiều đến điểm gần hơn trước
+            point2D A = m_routes[i][1].pos;
+            point2D B = m_routes[i].back().pos;
+            if (dist(A, m_hubPos) > dist(B, m_hubPos))
+                std::reverse(m_routes[i].begin() + 1, m_routes[i].end());
+
+            // Gán lại cluster
+            m_clusters[i].clear();
+            for (auto wp : m_routes[i]) {
+                if (wp.isRendezvous) continue;
+                m_clusters[i].push_back(wp.tag);
+            }
+        }
+        if (config.CHUB_virtualHub && config.CHUB_routeExtend) {
+            NS_LOG_UNCOND("CHUB: try extending route..");
+            m_extendedClusters = Clustering::BMTC_routeExtend_SA(groundNodePos, m_clusters, m_hubPos);
+            for (uint32_t i = 0; i < config.nFerrys; i++) {
+                m_routes[i].clear();
+                m_routes[i].push_back({ m_hubPos, 0, true });
+                for (auto g : m_extendedClusters[i]) {
+                    m_routes[i].push_back({ groundNodePos[g], g, false });
+                }
+            }
         }
         NS_LOG_UNCOND("CHUB: calculating connection distance..");
         if (config.CHUB_virtualHub) {
@@ -179,26 +212,8 @@ NS_OBJECT_ENSURE_REGISTERED(HubBasedClusteringDtnApp);
 
 void HubBasedClusteringDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) {
     m_direction = 1;
-    auto exclude = DataStructureHelper::GetReversedSet(servingNodesIndex, groundNodePos.size());
     m_ferryRoute = CHUB::AssignRoute();
-    for (uint32_t i = 0; i < m_ferryRoute.size(); i++) {
-        if (m_ferryRoute[i].isRendezvous) {
-            m_nextWaypointIndex = i; // tạm gán bằng vị trí hub
-            break;
-        }
-    }
-
-    if (m_ferryRoute.size() > 2) { // chọn chiều nào để đi theo chiều nào đến nút gần hơn
-        point2D A = m_ferryRoute[(m_nextWaypointIndex + 1) % m_ferryRoute.size()].pos;
-        point2D B = m_ferryRoute[(m_nextWaypointIndex - 1 + m_ferryRoute.size()) % m_ferryRoute.size()].pos;
-        point2D Hub = CHUB::m_hubPos;
-        if (dist(A, Hub) < dist(B, Hub))
-            m_direction = 1;
-        else
-            m_direction = -1;
-    }
-
-    m_nextWaypointIndex = (m_nextWaypointIndex - m_direction + m_ferryRoute.size()) % m_ferryRoute.size();
+    m_nextWaypointIndex = -1;
 
     Simulator::Schedule(Seconds(0), &HubBasedClusteringDtnApp::ScheduleNextWaypoint, this);
 }
@@ -213,7 +228,7 @@ void HubBasedClusteringDtnApp::ScheduleNextWaypoint() {
         }
     }
 
-    if (config.CHUB_virtualHub && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
+    if (m_reachedFirstWaypoint && config.CHUB_virtualHub && m_ferryRoute[m_nextWaypointIndex].isRendezvous) {
         // Chỉ wait với chế độ virtual hub
         if (!m_waited) {
             m_waited = true;
