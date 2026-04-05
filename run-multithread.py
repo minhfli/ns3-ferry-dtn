@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -45,13 +45,13 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "MRDLAS", "HUB" , "VHUB", "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "MRDLAS", "HUB" , "VHUB", "CHUB"],
     "name": ["CHUB"],
     # "name": [ "VHUB", "HUB","CHUB"],
 
     "nGrounds": [45],
-    # "nFerrys": [10], 
-    "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    "nFerrys": [20], 
+    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
 
     "groundBufferSize": [1000],
     # "ferryBufferSize": [ 50, 75, 100, 150, 200, 500],
@@ -64,6 +64,7 @@ param_grid = { # change or set to default grid for custom run
     "ferryComm": [False, True],
 }
 
+noFC_only = ["TABARA"]
 FC_only = ["SIRA", "PIGEON", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
@@ -76,6 +77,13 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "DETERMINISTIC",
         },
+        # "noSharing": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "TABAF_shareVisitTime": False,
+        #     "ferryComm": False,
+        # },
+    },
+    "SIRA": {
         # "PWS": {
         #     "waypointSelectMode": "PROBABILISTIC",
         # },
@@ -114,6 +122,14 @@ algo_variants= {
         "DWS_noB": {
             "waypointSelectMode": "DETERMINISTIC",
             "TABADLA_addBundleValue": False
+        },
+    },
+    "TABARA":{
+        # "default": {
+        # },   
+        "noSharing":{
+            "TABAF_shareVisitTime" : False,
+            "ferryComm": False,
         },
     },
     "RPDLAS": {
@@ -207,10 +223,10 @@ algo_variants= {
         },   
     },
     "CHUB":{
-        "default": {
-            "warmupTime": 500,
-            "CHUB_virtualHub": True,
-        },   
+        # "default": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": True,
+        # },   
         # "realHub": {
         #     "warmupTime": 500,
         #     "CHUB_virtualHub": False,
@@ -220,13 +236,14 @@ algo_variants= {
             "CHUB_virtualHub": True,
             "CHUB_routeExtend": True,
         },
-        "routeExtend_v2": {
+        "routeExtend_v3": {
             "warmupTime": 500,
             "CHUB_virtualHub": True,
             "CHUB_routeExtend": True,
-            "CHUB_reWait": True,
+            "CHUB_squareREReward": True,
         },
     },
+
 }
 
 N_SEEDS = 5
@@ -354,7 +371,8 @@ if __name__ == "__main__":
             if algo not in algo_variants:
                 algo_variants[algo] = {"default": {}}
             if (algo in FC_only) and params["ferryComm"] == False:
-                total_config_count -= len(algo_variants[algo])
+                continue
+            if (algo in noFC_only) and params["ferryComm"] == True:
                 continue
             for variant_name, variant_params in algo_variants.get(algo, {}).items():
                 params.update(variant_params)

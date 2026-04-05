@@ -841,9 +841,9 @@ namespace Clustering { // TODO Implement more
         const ClusterSolution& baseClusters,
         const point2D hubPos,
         // const double expectedRouteLengthCap,
-        uint32_t multi_start = 100,
-        double starting_temperature = 1.0,
-        double cooling = 0.99
+        uint32_t multi_start = 500,
+        double starting_temperature = 1.2,
+        double cooling = 0.95
     ) {
         uint32_t n = points.size();
         uint32_t k = baseClusters.size();
@@ -871,6 +871,8 @@ namespace Clustering { // TODO Implement more
             rewards[i] = maxRouteLength / 2.0 - rewards[i];
             if (rewards[i] < 0) rewards[i] = 0; // Chỉ xét các điểm mà khoảng cách từ nó đến hub > maxroute / 2
             else baseOrder.push_back(i);
+            if (config.CHUB_squareREReward)
+                rewards[i] *= rewards[i];
         }
         NS_LOG_UNCOND("Route length cap: " << maxRouteLength);
         double expectedRouteLengthCap = maxRouteLength;

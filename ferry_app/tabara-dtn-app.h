@@ -53,7 +53,7 @@ void TabaraDtnApp::CalculateNodeScore() {
             uint64_t time = Simulator::Now().GetMicroSeconds() - m_visitTime[groundNodeIps[i].Get()];
             timeFromLastVisit = time;
         }
-        double timeValue = timeFromLastVisit / 1000000.0 * nodeGenRate[groundNodeIps[i].Get()];
+        double timeValue = (timeFromLastVisit / 1000000.0 + dist / config.ferrySpeed) * nodeGenRate[groundNodeIps[i].Get()];
 
         double bundleValue = 0;
         if (bundleCountMap.find(groundNodeIps[i].Get()) != bundleCountMap.end()) {

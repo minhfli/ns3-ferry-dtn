@@ -108,6 +108,7 @@ struct Config {
     bool SR_PIGEON_V2_vtModePredict = true; //   
 
     bool TABAF_weightedDeadline = false;
+    bool TABAF_shareVisitTime = true;
 
     bool TABADLA_addBundleValue = false;
     uint32_t TABADLA_topK = 10;
@@ -132,6 +133,8 @@ struct Config {
     bool CHUB_virtualHub = true;
     bool CHUB_routeExtend = false;
     bool CHUB_reWait = false;
+    bool CHUB_squareREReward = false;
+
 
 
 } config;
@@ -189,6 +192,7 @@ void ParseConfig(int argc, char* argv[]) {
 
     // ----- algorithm specific config -----
     cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);
+    cmd.AddValue("TABAF_shareVisitTime", "TABAF share visit time", config.TABAF_shareVisitTime);
     cmd.AddValue("TABADLA_addBundleValue", "TABADLA, add bundle value", config.TABADLA_addBundleValue);
     cmd.AddValue("waypointSelectMode", "Waypoint selection mode", config.waypointSelectMode);
     cmd.AddValue("SR_PIGEON_V2_addlvt", "SR_PIGEON_V2, add lvt", config.SR_PIGEON_V2_addlvt);
@@ -202,7 +206,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("CHUB_virtualHub", "Use virtual hub", config.CHUB_virtualHub);
     cmd.AddValue("CHUB_routeExtend", "Use route extension", config.CHUB_routeExtend);
     cmd.AddValue("CHUB_reWait", "Use re-wait", config.CHUB_reWait);
-
+    cmd.AddValue("CHUB_squareREReward", "Use squared route extend reward", config.CHUB_squareREReward);
     cmd.Parse(argc, argv);
     return;
 }

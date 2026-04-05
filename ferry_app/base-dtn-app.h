@@ -277,6 +277,8 @@ std::vector<uint64_t> BaseDtnApp::GetServingExpectedArrival() {
 }
 
 void BaseDtnApp::UpdateVisitTime(const std::unordered_map<uint32_t, uint64_t> receivedVisitTime) {
+    if (!config.TABAF_shareVisitTime)
+        return;
     for (auto it = receivedVisitTime.begin(); it != receivedVisitTime.end(); ++it) {
         if (m_visitTime.find(it->first) == m_visitTime.end()) {
             m_visitTime[it->first] = it->second;

@@ -22,7 +22,7 @@ params = {
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     "CHUB_routeExtend": True,
-    "CHUB_reWait": True,
+    # "CHUB_reWait": True,
     #* default config
     "commRange": 150,
     "ferryHeight": 50,
