@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260401_test"
+BATCH = "20260406_noHover"
 BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": False, # skip if already run
+    "skip": True, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -33,7 +33,7 @@ base_params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "ferrySpeed": 12,
-    "hoverTime": 5,
+    "hoverTime": 0,
     "minGenRate": 10.0, # sec/packet
     "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
@@ -45,20 +45,21 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "MRDLAS", "HUB" , "VHUB", "CHUB"],
-    "name": ["CHUB"],
-    # "name": [ "VHUB", "HUB","CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "MRDLAS", "VHUB", "CHUB"],
+    # "name": ["CHUB"],
+    "name": [ "CHUB"],
 
     "nGrounds": [45],
-    "nFerrys": [20], 
-    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    # "nFerrys": [20], 
+    "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    # "nFerrys": [ 10, 15],
 
     "groundBufferSize": [1000],
-    # "ferryBufferSize": [ 50, 75, 100, 150, 200, 500],
+    # "ferryBufferSize": [ 50, 100, 150, 200, 500],
     "ferryBufferSize": [500],
 
-    "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
-    # "bundleTTL": [1200000000], 
+    "bundleTTL": [  450000000, 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
+    # "bundleTTL": [450000000], 
     # "bundleTTL": [600000000, 900000000], 
 
     "ferryComm": [False, True],
@@ -77,16 +78,11 @@ algo_variants= {
         "default": {
             "waypointSelectMode": "DETERMINISTIC",
         },
-        # "noSharing": {
-        #     "waypointSelectMode": "DETERMINISTIC",
-        #     "TABAF_shareVisitTime": False,
-        #     "ferryComm": False,
-        # },
-    },
-    "SIRA": {
-        # "PWS": {
-        #     "waypointSelectMode": "PROBABILISTIC",
-        # },
+        "noSharing": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "TABAF_shareVisitTime": False,
+            "ferryComm": False,
+        },
     },
     "SR_PIGEON": {
         "default": {
@@ -223,10 +219,10 @@ algo_variants= {
         },   
     },
     "CHUB":{
-        # "default": {
-        #     "warmupTime": 500,
-        #     "CHUB_virtualHub": True,
-        # },   
+        "default": {
+            "warmupTime": 500,
+            "CHUB_virtualHub": True,
+        },   
         # "realHub": {
         #     "warmupTime": 500,
         #     "CHUB_virtualHub": False,
@@ -236,12 +232,12 @@ algo_variants= {
             "CHUB_virtualHub": True,
             "CHUB_routeExtend": True,
         },
-        "routeExtend_v3": {
-            "warmupTime": 500,
-            "CHUB_virtualHub": True,
-            "CHUB_routeExtend": True,
-            "CHUB_squareREReward": True,
-        },
+        # "routeExtend_v3": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": True,
+        #     "CHUB_routeExtend": True,
+        #     "CHUB_squareREReward": True,
+        # },
     },
 
 }
@@ -367,14 +363,17 @@ if __name__ == "__main__":
             params.update(config)
             params["seed"] = random_seed
             algo = params["name"]
-            
-            if algo not in algo_variants:
-                algo_variants[algo] = {"default": {}}
             if (algo in FC_only) and params["ferryComm"] == False:
                 continue
             if (algo in noFC_only) and params["ferryComm"] == True:
                 continue
+            
+            if algo not in algo_variants:
+                algo_variants[algo] = {"default": {}}
+
             for variant_name, variant_params in algo_variants.get(algo, {}).items():
+                if params["ferryComm"] != variant_params.get("ferryComm", params["ferryComm"]):
+                    continue
                 params.update(variant_params)
                 if variant_name == "default":
                     variant_name = ""

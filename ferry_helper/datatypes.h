@@ -56,6 +56,7 @@ struct WeightedDeadline {
     double time;
 };
 
+
 struct color {
     int r;
     int g;

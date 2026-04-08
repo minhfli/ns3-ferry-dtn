@@ -12,16 +12,60 @@
 
 using namespace ns3;
 
+// id + sourceIp
+struct BundleIdentification {
+    uint32_t bundleId;
+    uint32_t sourceIp;
+    bool operator==(const BundleIdentification& other) const {
+        return bundleId == other.bundleId && sourceIp == other.sourceIp;
+    }
+    bool operator!=(const BundleIdentification& other) const {
+        return !(*this == other);
+    }
+    bool operator<(const BundleIdentification& other) const {
+        if (bundleId < other.bundleId) return true;
+        if (bundleId > other.bundleId) return false;
+        return sourceIp < other.sourceIp;
+    }
+    bool operator>(const BundleIdentification& other) const {
+        return other < *this;
+    }
+    bool operator<=(const BundleIdentification& other) const {
+        return !(other < *this);
+    }
+    bool operator>=(const BundleIdentification& other) const {
+        return !(*this < other);
+    }
+};
+
 struct Bundle {
     uint8_t hop;
     uint32_t id;
     Ipv4Address source;
     Ipv4Address destination;
     uint64_t creationTime; // in microseconds
+    uint32_t replication = 1;
 
     // some flag for managing bundle
     bool flag_waitingAck = false;
     EventId e_AckTimeout = EventId();
+    BundleIdentification identification() {
+        return BundleIdentification{ id, source.Get() };
+    }
+};
+
+
+struct NeighborInfomation {
+    std::vector<uint32_t> route; // list of node id that the neighbor will go
+    std::vector<uint64_t> expectedArrival; // expected arrival time of each waypoint in route
+    std::set<BundleIdentification> bundleSet; // does the neighbor have the bundle with this identification ?
+    uint64_t lastContactTime;
+    std::map<uint32_t, uint32_t> bufferState; // buffer state which is a map of ip and count of bundle that need to reach it
+    uint8_t operationMode;
+    uint8_t group;
+
+    NeighborInfomation() : lastContactTime(0) {}
+
 };
 
 bool compareBundleTime(const Bundle& b1, const Bundle& b2) {
@@ -35,9 +79,10 @@ class BundleHeader : public Header {
     uint32_t m_sourceIp;
     uint32_t m_destIp;
     uint64_t m_creationTime; // creation time in micro second
+    uint32_t m_replication; // number of replication for this bundle, used in Spray and Wait, ignore otherwise
 
     public:
-    BundleHeader() : m_hop(0), m_bundleId(0), m_sourceIp(0), m_destIp(0), m_creationTime(0) {}
+    BundleHeader() : m_hop(0), m_bundleId(0), m_sourceIp(0), m_destIp(0), m_creationTime(0), m_replication(1) {}
 
     void SetHop(uint8_t hop) { m_hop = hop; }
     uint8_t GetHop() const { return m_hop; }
@@ -54,6 +99,9 @@ class BundleHeader : public Header {
     void SetCreationTime(uint64_t time) { m_creationTime = time; }
     uint64_t GetCreationTime() const { return m_creationTime; }
 
+    void SetReplication(uint32_t replication) { m_replication = replication; }
+    uint32_t GetReplication() const { return m_replication; }
+
     Bundle toBundle() const { // call when you want to decode header to bundle, note that hop is automatically incremented
         Bundle bundle;
         bundle.creationTime = m_creationTime;
@@ -61,6 +109,7 @@ class BundleHeader : public Header {
         bundle.hop = m_hop + 1;
         bundle.id = m_bundleId;
         bundle.source = Ipv4Address(m_sourceIp);
+        bundle.replication = m_replication;
         return bundle;
     }
 
@@ -71,6 +120,7 @@ class BundleHeader : public Header {
         header.SetSourceIp(bundle.source);
         header.SetDestIp(bundle.destination);
         header.SetCreationTime(bundle.creationTime);
+        header.SetReplication(bundle.replication);
         return header;
     }
 
@@ -96,7 +146,7 @@ class BundleHeader : public Header {
 
     virtual uint32_t GetSerializedSize(void) const
     {
-        return 1 + 4 + 4 + 4 + 8;
+        return 1 + 4 + 4 + 4 + 8 + 4;
     }
 
     virtual void Serialize(Buffer::Iterator start) const
@@ -106,6 +156,7 @@ class BundleHeader : public Header {
         start.WriteHtonU32(m_sourceIp);
         start.WriteHtonU32(m_destIp);
         start.WriteHtonU64(m_creationTime);
+        start.WriteHtonU32(m_replication);
     }
 
     virtual uint32_t Deserialize(Buffer::Iterator start)
@@ -115,18 +166,26 @@ class BundleHeader : public Header {
         m_sourceIp = start.ReadNtohU32();
         m_destIp = start.ReadNtohU32();
         m_creationTime = start.ReadNtohU64();
+        m_replication = start.ReadNtohU32();
         return GetSerializedSize();
     }
 };
 
 class BundleAckHeader : public Header {
+    public:
+    enum AckMode : uint8_t {
+        DEFAULT = 0,
+        ALLOW_DELETE = 1,
+        NOT_ADDED_TO_BUFFER = 2 // bundle acknowlegded, but not added to buffer because node already have it
+    };
     private:
     uint32_t m_bundleId; // global bundle id = m_bundleID << 32 + m_source IP
     uint32_t m_sourceIp;
     uint32_t m_destIp;
+    uint8_t m_ackMode;
 
     public:
-    BundleAckHeader() : m_bundleId(0), m_sourceIp(0), m_destIp(0) {}
+    BundleAckHeader() : m_bundleId(0), m_sourceIp(0), m_destIp(0), m_ackMode(0) {}
     void SetBundleId(uint32_t id) { m_bundleId = id; }
     uint32_t GetBundleId() const { return m_bundleId; }
 
@@ -135,6 +194,9 @@ class BundleAckHeader : public Header {
 
     void SetDestIp(Ipv4Address ip) { m_destIp = ip.Get(); }
     Ipv4Address GetDestIp() const { return Ipv4Address(m_destIp); }
+
+    void SetAckMode(uint8_t ackMode) { m_ackMode = ackMode; }
+    uint8_t GetAckMode() const { return m_ackMode; }
 
     static TypeId GetTypeId(void)
     {
@@ -158,7 +220,7 @@ class BundleAckHeader : public Header {
 
     virtual uint32_t GetSerializedSize(void) const
     {
-        return 4 + 4 + 4;
+        return 4 + 4 + 4 + 1;
     }
 
     virtual void Serialize(Buffer::Iterator start) const
@@ -166,6 +228,7 @@ class BundleAckHeader : public Header {
         start.WriteHtonU32(m_bundleId);
         start.WriteHtonU32(m_sourceIp);
         start.WriteHtonU32(m_destIp);
+        start.WriteU8(m_ackMode);
     }
 
     virtual uint32_t Deserialize(Buffer::Iterator start)
@@ -173,6 +236,7 @@ class BundleAckHeader : public Header {
         m_bundleId = start.ReadNtohU32();
         m_sourceIp = start.ReadNtohU32();
         m_destIp = start.ReadNtohU32();
+        m_ackMode = start.ReadU8();
         return GetSerializedSize();
     }
 };
@@ -187,6 +251,8 @@ class MessageTypeHeader : public Header {
         FERRY_BEACON = 1, // ferry broadcast on interval
         FERRY_HELLO = 2, // ferry unicast when receive beacon
         FERRY_ACCEPT_TRANSFER = 3, // ferry send to ferry node to tell it to send bundle
+
+        SUMARY_VECTOR = 5, // Send by ferry or ground node when cumunicate with other ferry node
 
         GROUND_HELLO = 11, // ground node send when beaconed by ferry
 
@@ -207,6 +273,7 @@ class MessageTypeHeader : public Header {
         if (m_type == FERRY_BEACON) return "FERRY_BEACON";
         if (m_type == FERRY_HELLO) return "FERRY_HELLO";
         if (m_type == FERRY_ACCEPT_TRANSFER) return "FERRY_ACCEPT_TRANSFER";
+        if (m_type == SUMARY_VECTOR) return "SUMARY_VECTOR";
         if (m_type == GROUND_HELLO) return "GROUND_HELLO";
         if (m_type == BUNDLE) return "BUNDLE";
         if (m_type == BUNDLE_ACK) return "BUNDLE_ACK";
@@ -495,4 +562,65 @@ class BufferStateHeader : public Header {
     }
 
 };
+
+class SumaryVectorHeader : public Header {
+    private:
+    uint8_t m_finalVector;
+    uint32_t m_count;
+    std::vector<BundleIdentification> m_bundleIds;
+
+    public:
+    SumaryVectorHeader() : m_finalVector(false), m_count(0), m_bundleIds() {}
+
+    void SetFinalVector(bool finalVector) { m_finalVector = (finalVector != 0); }
+    bool GetFinalVector() const { return m_finalVector != 0; }
+
+    void SetCount(uint32_t count) { m_count = count; }
+    uint32_t GetCount() const { return m_count; }
+
+    void SetBundleIds(std::vector<BundleIdentification> bundleIds) { m_bundleIds = bundleIds; }
+    std::vector<BundleIdentification> GetBundleIds() const { return m_bundleIds; }
+
+    static TypeId GetTypeId(void) {
+        static TypeId tid = TypeId("ns3::SumaryVectorHeader")
+            .SetParent<Header>()
+            .AddConstructor<SumaryVectorHeader>();
+        return tid;
+    }
+
+    virtual TypeId GetInstanceTypeId(void) const { return GetTypeId(); }
+
+    virtual void Print(std::ostream& os) const
+    {
+        os << "Group=" << (int)m_count;
+    }
+
+    virtual uint32_t GetSerializedSize(void) const
+    {
+        return 1 + 4 + (4 + 4) * m_count;
+    }
+
+    virtual void Serialize(Buffer::Iterator start) const
+    {
+        start.WriteU8(m_finalVector);
+        start.WriteHtonU32(m_count);
+        for (uint32_t i = 0; i < m_count; i++) {
+            start.WriteHtonU32(m_bundleIds[i].bundleId);
+            start.WriteHtonU32(m_bundleIds[i].sourceIp);
+        }
+    }
+
+    virtual uint32_t Deserialize(Buffer::Iterator start)
+    {
+        m_finalVector = start.ReadU8();
+        m_count = start.ReadNtohU32();
+        m_bundleIds.resize(m_count);
+        for (uint32_t i = 0; i < m_count; i++) {
+            m_bundleIds[i].bundleId = start.ReadNtohU32();
+            m_bundleIds[i].sourceIp = start.ReadNtohU32();
+        }
+        return GetSerializedSize();
+    }
+};
+
 #endif // FERRY_MESSAGE

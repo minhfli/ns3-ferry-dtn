@@ -2,22 +2,24 @@ import subprocess
 import os
 
 PROGRAM = "ferry"
+PROGRAM2 = "ferryrep"
 
 params = {
     "seed": 762227828,
-    "name": "CHUB", # algorithm name
+    "name": "SNW_MRDLAS", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "testRE2", # run name for log file
-    "simTime": 10000,
+    "simTime": 5000,
     "warmupTime": 500,
     "hoverTime": 5,
     "nGrounds": 45,
-    "nFerrys": 12,
+    "nFerrys": 10,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
+    "SnW_replications": 16,
     "waypointSelectMode" :"DETERMINISTIC",
-    "MRDLAS_weightedDeadline": True,
+    "MRDLAS_weightedDeadline": False,
     "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
@@ -38,6 +40,9 @@ params = {
     "bundleTTL": 1200000000, # microsec
     "ferryComm": True, # enable communication between ferry
 }
+
+if params["name"].startswith("SNW") or params["name"].startswith("EPIDEMIC"):
+    PROGRAM = PROGRAM2
 
 def build_cmd(program, params):
     args = " ".join(f"--{k}={v}" for k, v in params.items())

@@ -45,6 +45,9 @@ const std::string DRC_ONE_CENTER = "DRC_ONE_CENTER";
 const std::string DRC_TWO_CENTER = "DRC_TWO_CENTER";
 const std::string DRC_GABRIEL = "DRC_GABRIEL";
 
+const std::string REP_DTN_EPIDEMIC = "EPIDEMIC";
+const std::string REP_DTN_SNW = "SPRAY_AND_WAIT";
+
 struct Config {
     int randSeed = 1337;
     std::string ALGORITHM_NAME = "SIRA";
@@ -98,10 +101,18 @@ struct Config {
     // physical payload size of a chunk and bundle
     uint32_t chunkPayload = 1024; // 1KB, currently, we will only use this
     uint32_t bundlePayload = 102400; // 100KB, chunking will be implemented later
+    uint32_t maxBundlePerSumary = 125; // 125 bundle per sumary vector -> 8 * 125 + 1 + 4 = 1005 byte
 
     // visualization config
     uint32_t positionLogInterval = 1000; // ms ~ 0.25s
 
+    // DTN config
+    std::string replicationBaseDtnAppMode = REP_DTN_SNW;
+    uint32_t epidemic_maxHop = 10;
+    uint32_t SnW_replications = 16;
+    bool SnW_binary = true;
+
+    // algorithm config
     uint32_t PIGEON_return_mode = PIGEON_RETURN_CONTINUE;
 
     bool SR_PIGEON_V2_addlvt = false; // add time since last visit value to node score calculation
@@ -139,11 +150,15 @@ struct Config {
 
 } config;
 
+Time GetJitter() {
+    return MicroSeconds(m_rand->GetInteger(config.jitterAmount, config.jitterAmount * 3));
+}
+
 struct AlgorithmSpecificSettings {
     bool sendRouteInHello = true; // always send route Header in Hello message if not disabled by specific algorithm
-
+    bool sendVisitTimeInHello = true;
+    bool sendBundleCountInHello = true; // this is must be true for all base-dtn-app derived app
 } algoConfig;
-
 
 
 struct SimulationVariablePointer {
@@ -189,6 +204,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("bundleTTL", "Bundle TTL", config.bundleTTL);
     cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);
+    cmd.AddValue("SnW_replications", "SnW replications", config.SnW_replications);
 
     // ----- algorithm specific config -----
     cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);

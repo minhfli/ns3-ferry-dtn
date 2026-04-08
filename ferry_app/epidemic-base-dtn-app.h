@@ -34,19 +34,19 @@
 using namespace ns3;
 
 #pragma region Class
-class BaseDtnApp : public Application {
+class EpidemicBaseDtnApp : public Application {
     private:
     constexpr static uint8_t FTF_MODE_RECEIVED_ACCEPT = 0;
     constexpr static uint8_t FTF_MODE_NOT_RECEIVED_ACCEPT = 1;
 
     public:
-    BaseDtnApp();
-    ~BaseDtnApp();
+    EpidemicBaseDtnApp();
+    ~EpidemicBaseDtnApp();
 
     static TypeId GetTypeId(void) {
-        static TypeId tid = TypeId("ns3::BaseDtnApp")
+        static TypeId tid = TypeId("ns3::EpidemicBaseDtnApp")
             .SetParent<Application>();
-            // .AddConstructor<BaseDtnApp>(); // cannot add constructor since this is abstract class
+            // .AddConstructor<EpidemicBaseDtnApp>(); // cannot add constructor since this is abstract class
         return tid;
     }
 
@@ -82,6 +82,8 @@ class BaseDtnApp : public Application {
     std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
+    // Có bundle này trong buffer không ?
+    bool HaveBundle(BundleIdentification bId);
 
     virtual void ScheduleNextWaypoint() = 0;
     void HoverAndScheduleNextWaypoint();
@@ -96,10 +98,13 @@ class BaseDtnApp : public Application {
     void SendFerryAcceptTransfer(Ipv4Address ferryIp);
     void SendBundle(Bundle& bundle, Ipv4Address neighborIp);
     void SendBundleAck(Bundle bundle, Ipv4Address neighborIp);
+    void SendSumaryVector(Ipv4Address neighborIp);
+    void SendSumaryVectorFragment(Ipv4Address neighborIp, const SumaryVectorHeader sumaryVectorHeader);
     void SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neighborIp);
 
     void Schedule_FerryToGround_Transfer(Ipv4Address groundIp);
     void Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp);
+    void Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp);
     // void Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp, uint8_t mode);
 
 
@@ -114,6 +119,7 @@ class BaseDtnApp : public Application {
     virtual void OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet);
     virtual void OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet);
     virtual void OnGroundReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnGroundReceiveSumaryVector(Ipv4Address sourceIp, Ptr<Packet> packet);
 
     virtual void OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet);
     virtual void OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet);
@@ -121,6 +127,7 @@ class BaseDtnApp : public Application {
     virtual void OnFerryReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet);
     virtual void OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet);
     virtual void OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet);
+    virtual void OnFerryReceiveSumaryVector(Ipv4Address sourceIp, Ptr<Packet> packet);
 
     //* --- Bundle Logic dùng chung ---
     void GenerateBundle();
@@ -128,6 +135,7 @@ class BaseDtnApp : public Application {
     void RemoveExpiredBundles();
     void RemoveOldBundle();
     Bundle RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp);
+    void DecreseAckedBundleReplication(uint32_t bundleId, uint32_t sourceIp);
     void BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp);
 
     virtual Bundle* GroundSelectBundleToFerry(Ipv4Address neighborIp);
@@ -147,6 +155,9 @@ class BaseDtnApp : public Application {
 
     std::unordered_map<uint32_t, NeighborInfomation> m_neighbor;
     std::unordered_map<uint32_t, uint64_t> m_visitTime;
+    // on ferry: set of bundle that this ferry successfully transfered to a ground node
+    // on ground: set of bundle that successfully transfered to this node to advoid duplicating
+    std::set<BundleIdentification> m_successTranfered;
 
     double m_bundleGenRate;
     std::vector<Bundle> m_buffer;
@@ -158,17 +169,17 @@ class BaseDtnApp : public Application {
 
 #pragma endregion
 
-NS_OBJECT_ENSURE_REGISTERED(BaseDtnApp);
+NS_OBJECT_ENSURE_REGISTERED(EpidemicBaseDtnApp);
 
 #pragma region Setup
 
-BaseDtnApp::BaseDtnApp()
+EpidemicBaseDtnApp::EpidemicBaseDtnApp()
     : m_port(80), m_maxBufferSize(100), m_bundleIdCounter(0) {
 }
 
-BaseDtnApp::~BaseDtnApp() {}
+EpidemicBaseDtnApp::~EpidemicBaseDtnApp() {}
 
-void BaseDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType) {
+void EpidemicBaseDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uint32_t bufferSize, uint8_t nodeType) {
     m_node = node;
     m_socket = socket;
     m_myIp = myIp;
@@ -183,7 +194,7 @@ void BaseDtnApp::Setup(Ptr<Node> node, Ptr<Socket> socket, Ipv4Address myIp, uin
     NS_ASSERT(m_mobility != nullptr);
 }
 
-void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
+void EpidemicBaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     if (inversed) {
         m_bundleGenRate = 1.0 / rate;
     }
@@ -194,16 +205,16 @@ void BaseDtnApp::EnableBundleGeneration(double rate, bool inversed) {
     nodeGenRate[m_myIp.Get()] = m_bundleGenRate;
     double averageBundleTime = 1.0 / m_bundleGenRate;
     double startTime = 0.1 + bundleGenRand->GetValue(0.0, averageBundleTime);
-    Simulator::Schedule(Seconds(startTime + config.warmupTime), &BaseDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(startTime + config.warmupTime), &EpidemicBaseDtnApp::GenerateBundle, this);
 }
 
-void BaseDtnApp::StartApplication(void) {
+void EpidemicBaseDtnApp::StartApplication(void) {
     if (m_socket->Bind(InetSocketAddress(Ipv4Address::GetAny(), m_port)) == -1) {
         NS_LOG_UNCOND("Bind failed for node " << nodeId[m_myIp.Get()]);
         NS_ASSERT(false);
         return;
     }
-    m_socket->SetRecvCallback(MakeCallback(&BaseDtnApp::ReceivePacket, this));
+    m_socket->SetRecvCallback(MakeCallback(&EpidemicBaseDtnApp::ReceivePacket, this));
     m_socket->SetAllowBroadcast(true);
     NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " started listening on port " << m_port);
 
@@ -212,15 +223,15 @@ void BaseDtnApp::StartApplication(void) {
     }
     else {
         NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << " is a FERRY node.");
-        Simulator::Schedule(Seconds(m_rand->GetValue(0.1, config.beaconInterval)), &BaseDtnApp::Beacon, this);
+        Simulator::Schedule(Seconds(m_rand->GetValue(0.1, config.beaconInterval)), &EpidemicBaseDtnApp::Beacon, this);
     }
 }
 
-void BaseDtnApp::StopApplication(void) {
+void EpidemicBaseDtnApp::StopApplication(void) {
     if (m_socket) { m_socket->Close(); }
 }
 
-void BaseDtnApp::UpdateGroup(uint8_t groupId) {
+void EpidemicBaseDtnApp::UpdateGroup(uint8_t groupId) {
     m_groupId = groupId;
     nodeGroup[m_myIp.Get()] = groupId;
 }
@@ -229,7 +240,7 @@ void BaseDtnApp::UpdateGroup(uint8_t groupId) {
 
 #pragma region Helper
 
-std::vector<point2D> BaseDtnApp::GetServingWaypointRoute() {
+std::vector<point2D> EpidemicBaseDtnApp::GetServingWaypointRoute() {
     auto nodeRoute = this->GetServingNodeRoute();
     if (nodeRoute.empty()) return {};
 
@@ -240,7 +251,7 @@ std::vector<point2D> BaseDtnApp::GetServingWaypointRoute() {
     return route;
 }
 
-std::vector<uint64_t> BaseDtnApp::GetServingExpectedArrival() {
+std::vector<uint64_t> EpidemicBaseDtnApp::GetServingExpectedArrival() {
     auto waypointRoute = this->GetServingWaypointRoute();
     if (waypointRoute.empty()) return {};
 
@@ -258,7 +269,7 @@ std::vector<uint64_t> BaseDtnApp::GetServingExpectedArrival() {
     return expectedArrival;
 }
 
-void BaseDtnApp::UpdateVisitTime(const std::unordered_map<uint32_t, uint64_t> receivedVisitTime) {
+void EpidemicBaseDtnApp::UpdateVisitTime(const std::unordered_map<uint32_t, uint64_t> receivedVisitTime) {
     if (!config.TABAF_shareVisitTime)
         return;
     for (auto it = receivedVisitTime.begin(); it != receivedVisitTime.end(); ++it) {
@@ -271,11 +282,11 @@ void BaseDtnApp::UpdateVisitTime(const std::unordered_map<uint32_t, uint64_t> re
     }
 }
 
-void BaseDtnApp::SetVisitTime(uint32_t nodeIp, uint64_t time) {
+void EpidemicBaseDtnApp::SetVisitTime(uint32_t nodeIp, uint64_t time) {
     m_visitTime[nodeIp] = time;
 }
 
-std::map<uint32_t, uint32_t> BaseDtnApp::GetBundleCount() const {
+std::map<uint32_t, uint32_t> EpidemicBaseDtnApp::GetBundleCount() const {
     std::map<uint32_t, uint32_t> bundleCount;
     for (auto ip : groundNodeIps) {
         bundleCount[ip.Get()] = 0;
@@ -286,7 +297,7 @@ std::map<uint32_t, uint32_t> BaseDtnApp::GetBundleCount() const {
     return bundleCount;
 }
 
-std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
+std::vector<std::vector<double>> EpidemicBaseDtnApp::GetDeadlines() {
     RemoveExpiredBundles();
     std::vector<std::vector<double>> deadlines;
     deadlines.resize(config.nGrounds);
@@ -298,7 +309,7 @@ std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
     }
     return deadlines;
 }
-std::vector<std::vector<WeightedDeadline>> BaseDtnApp::GetWeightedDeadlines() {
+std::vector<std::vector<WeightedDeadline>> EpidemicBaseDtnApp::GetWeightedDeadlines() {
     RemoveExpiredBundles();
     std::vector<std::vector<WeightedDeadline>> deadlines;
     deadlines.resize(config.nGrounds);
@@ -313,7 +324,7 @@ std::vector<std::vector<WeightedDeadline>> BaseDtnApp::GetWeightedDeadlines() {
     return deadlines;
 }
 
-std::set<uint32_t> BaseDtnApp::GetFasterNeighborWaypoints(NeighborInfomation neighbor) {
+std::set<uint32_t> EpidemicBaseDtnApp::GetFasterNeighborWaypoints(NeighborInfomation neighbor) {
     std::set<uint32_t> fasterWaypoints;
 
     for (uint32_t i = 0; i < neighbor.route.size(); i++) {
@@ -326,9 +337,18 @@ std::set<uint32_t> BaseDtnApp::GetFasterNeighborWaypoints(NeighborInfomation nei
     }
     return fasterWaypoints;
 }
+
+bool EpidemicBaseDtnApp::HaveBundle(BundleIdentification bId) {
+    if (m_successTranfered.find(bId) != m_successTranfered.end())
+        return true;
+    for (auto bundle : m_buffer) {
+        if (bundle.identification() == bId) return true;
+    }
+    return false;
+}
 #pragma endregion
 #pragma region Sending 
-void BaseDtnApp::Beacon() {
+void EpidemicBaseDtnApp::Beacon() {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_BEACON);
     header.SetNodeIP(m_myIp);
@@ -343,10 +363,10 @@ void BaseDtnApp::Beacon() {
 
     Time nextBeacon = Seconds(m_rand->GetValue(0.0, config.beaconRandomnes)) + Seconds(config.beaconInterval);
     // Schedule next Hello
-    Simulator::Schedule(nextBeacon, &BaseDtnApp::Beacon, this);
+    Simulator::Schedule(nextBeacon, &EpidemicBaseDtnApp::Beacon, this);
 }
 
-void BaseDtnApp::SendGroundHello(Ipv4Address ferryIp) {
+void EpidemicBaseDtnApp::SendGroundHello(Ipv4Address ferryIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::GROUND_HELLO);
     header.SetNodeIP(m_myIp);
@@ -355,7 +375,7 @@ void BaseDtnApp::SendGroundHello(Ipv4Address ferryIp) {
     vTimeHeader.FromMap(m_visitTime);
 
     Ptr<Packet> packet = Create<Packet>(0);
-    if (algoConfig.sendRouteInHello)
+    if (algoConfig.sendVisitTimeInHello)
         packet->AddHeader(vTimeHeader);
     packet->AddHeader(header);
 
@@ -364,7 +384,7 @@ void BaseDtnApp::SendGroundHello(Ipv4Address ferryIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
+void EpidemicBaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_HELLO);
     header.SetNodeIP(m_myIp);
@@ -389,8 +409,8 @@ void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     bufferStateHeader.FromBuffer(m_buffer);
 
     Ptr<Packet> packet = Create<Packet>(0);
-    // if (algoConfig.sendBundleCountInHello)
-    packet->AddHeader(bufferStateHeader); // bundle count should always be sent
+    if (algoConfig.sendBundleCountInHello)
+        packet->AddHeader(bufferStateHeader);
     if (algoConfig.sendRouteInHello)
         packet->AddHeader(fRouteHeader);
     if (algoConfig.sendVisitTimeInHello)
@@ -401,7 +421,7 @@ void BaseDtnApp::SendFerryHello(Ipv4Address ferryIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void BaseDtnApp::SendFerryAcceptTransfer(Ipv4Address ferryIp) {
+void EpidemicBaseDtnApp::SendFerryAcceptTransfer(Ipv4Address ferryIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::FERRY_ACCEPT_TRANSFER);
     header.SetNodeIP(m_myIp);
@@ -413,16 +433,24 @@ void BaseDtnApp::SendFerryAcceptTransfer(Ipv4Address ferryIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void BaseDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
+void EpidemicBaseDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::BUNDLE);
     header.SetNodeIP(m_myIp);
 
     BundleHeader bundleHeader = BundleHeader::fromBundle(bundle);
 
+    if (config.replicationBaseDtnAppMode == REP_DTN_EPIDEMIC) {
+        // EPIDEMIC
+    }
+    if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
+        // SPRAY AND WAIT
+        bundleHeader.SetReplication(std::max((uint32_t)1, bundle.replication / 2));
+    }
+
     bundle.flag_waitingAck = true;
     Simulator::Schedule(MicroSeconds(config.bundleAckTimeout),
-        &BaseDtnApp::BundleAckTimeout, this, bundle.id, bundle.source.Get());
+        &EpidemicBaseDtnApp::BundleAckTimeout, this, bundle.id, bundle.source.Get());
 
     Ptr<Packet> packet = Create<Packet>(0);
     packet->AddHeader(bundleHeader);
@@ -432,7 +460,7 @@ void BaseDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void BaseDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
+void EpidemicBaseDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::BUNDLE_ACK);
     header.SetNodeIP(m_myIp);
@@ -441,6 +469,17 @@ void BaseDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
     bundleAckHeader.SetBundleId(bundle.id);
     bundleAckHeader.SetSourceIp(bundle.source);
     bundleAckHeader.SetDestIp(neighborIp);
+    if (m_nodeType == NODE_TYPE_GROUND) {
+        bundleAckHeader.SetAckMode(BundleAckHeader::AckMode::ALLOW_DELETE);
+    }
+    else {
+        if (m_successTranfered.find({ bundle.id, bundle.source.Get() }) != m_successTranfered.end()) {
+            bundleAckHeader.SetAckMode(BundleAckHeader::AckMode::ALLOW_DELETE);
+        }
+        else if (HaveBundle(bundle.identification())) {
+            bundleAckHeader.SetAckMode(BundleAckHeader::AckMode::NOT_ADDED_TO_BUFFER);
+        }
+    }
     RemoveExpiredBundles();
 
     Ptr<Packet> packet = Create<Packet>(0);
@@ -451,7 +490,7 @@ void BaseDtnApp::SendBundleAck(Bundle bundle, Ipv4Address neighborIp) {
     m_socket->SendTo(packet, 0, unicast);
 }
 
-void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neighborIp) {
+void EpidemicBaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neighborIp) {
     MessageTypeHeader header;
     header.SetType(MessageTypeHeader::BUNDLE_ACK_FAT);
     header.SetNodeIP(m_myIp);
@@ -460,10 +499,56 @@ void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neigh
     bundleAckHeader.SetBundleId(bundle.id);
     bundleAckHeader.SetSourceIp(bundle.source);
     bundleAckHeader.SetDestIp(neighborIp);
+    if (m_successTranfered.find({ bundle.id, bundle.source.Get() }) != m_successTranfered.end())
+        bundleAckHeader.SetAckMode(BundleAckHeader::AckMode::ALLOW_DELETE);
+    else if (HaveBundle(bundle.identification())) {
+        bundleAckHeader.SetAckMode(BundleAckHeader::AckMode::NOT_ADDED_TO_BUFFER);
+    }
     RemoveExpiredBundles();
 
     Ptr<Packet> packet = Create<Packet>(0);
     packet->AddHeader(bundleAckHeader);
+    packet->AddHeader(header);
+
+    InetSocketAddress unicast = InetSocketAddress(neighborIp, m_port);
+    m_socket->SendTo(packet, 0, unicast);
+}
+
+void EpidemicBaseDtnApp::SendSumaryVector(Ipv4Address neighborIp) {
+    std::vector<SumaryVectorHeader> sumaryVectorList;
+    RemoveExpiredBundles();
+    uint32_t n = m_buffer.size();
+    uint32_t sumarized = 0;
+    while (sumarized < n) {
+        uint32_t sumaryCount = std::min(config.maxBundlePerSumary, n - sumarized);
+        SumaryVectorHeader svHeader;
+        svHeader.SetCount(sumaryCount);
+        svHeader.SetFinalVector(false);
+        if (sumarized + sumaryCount == n) {
+            svHeader.SetFinalVector(true);
+        }
+        std::vector<BundleIdentification> bundleList;
+        for (uint32_t i = 0; i < sumaryCount; i++) {
+            bundleList.push_back({ m_buffer[sumarized + i].id, m_buffer[sumarized + i].source.Get() });
+        }
+        svHeader.SetBundleIds(bundleList);
+        sumaryVectorList.push_back(svHeader);
+        sumarized += sumaryCount;
+    }
+    Time jitter = Time(0);
+    for (auto svHeader : sumaryVectorList) {
+        jitter += GetJitter();
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendSumaryVectorFragment, this, neighborIp, svHeader);
+    }
+}
+
+void EpidemicBaseDtnApp::SendSumaryVectorFragment(Ipv4Address neighborIp, const SumaryVectorHeader sumaryVectorHeader) {
+    MessageTypeHeader header;
+    header.SetType(MessageTypeHeader::SUMARY_VECTOR);
+    header.SetNodeIP(m_myIp);
+
+    Ptr<Packet> packet = Create<Packet>(0);
+    packet->AddHeader(sumaryVectorHeader);
     packet->AddHeader(header);
 
     InetSocketAddress unicast = InetSocketAddress(neighborIp, m_port);
@@ -474,33 +559,18 @@ void BaseDtnApp::SendBundleAckAndAcceptTransfer(Bundle bundle, Ipv4Address neigh
 
 #pragma region Scheduling
 
-void BaseDtnApp::HoverAndScheduleNextWaypoint() {
+void EpidemicBaseDtnApp::HoverAndScheduleNextWaypoint() {
     m_mobility->SetVelocity(Vector3D(0, 0, 0));
-    Simulator::Schedule(Seconds(config.hoverTime), &BaseDtnApp::ScheduleNextWaypoint, this);
+    Simulator::Schedule(Seconds(config.hoverTime), &EpidemicBaseDtnApp::ScheduleNextWaypoint, this);
 }
 
-Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
+Bundle* EpidemicBaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
     RemoveExpiredBundles();
     if (m_buffer.empty()) return nullptr;
-
-    std::sort(m_buffer.begin(), m_buffer.end(), [](const Bundle& a, const Bundle& b) {
-        return a.creationTime > b.creationTime;
-    }); // newest bundle first
-
-
-    if (m_groupId != nodeGroup[neighborIp.Get()]) {
-        // send bundle that belongs to ground node with ferry group id
-        for (auto& bundle : m_buffer) {
-            if (bundle.flag_waitingAck == false && nodeGroup[bundle.destination.Get()] == nodeGroup[neighborIp.Get()]) {
-                return &bundle;
-            }
-        }
-
-        return nullptr; // not in the same group
-    }
-
+    auto& neighbor = m_neighbor[neighborIp.Get()];
     for (auto& bundle : m_buffer) {
-        if (bundle.flag_waitingAck == false) {
+        if (bundle.flag_waitingAck == false &&
+            neighbor.bundleSet.find(bundle.identification()) == neighbor.bundleSet.end()) {
             return &bundle;
         }
 
@@ -509,7 +579,7 @@ Bundle* BaseDtnApp::GroundSelectBundleToFerry(Ipv4Address neighborIp) {
     return nullptr; // no bundle to send
 }
 
-Bundle* BaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
+Bundle* EpidemicBaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
     RemoveExpiredBundles();
     if (m_buffer.empty()) return nullptr;
 
@@ -521,52 +591,61 @@ Bundle* BaseDtnApp::FerrySelectBundleToGround(Ipv4Address neighborIp) {
     return nullptr;
 }
 
-Bundle* BaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
+Bundle* EpidemicBaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
     RemoveExpiredBundles();
     if (m_buffer.empty()) return nullptr;
 
     auto neighbor = m_neighbor[neighborIp.Get()];
-    // filter node that neighbor will go to it faster
-    std::set<uint32_t> nodeFilter = GetFasterNeighborWaypoints(neighbor);
 
     for (Bundle& bundle : m_buffer) {
         if (bundle.flag_waitingAck) continue;
-        if (nodeFilter.find(bundle.destination.Get()) != nodeFilter.end()) {
-            return &bundle;
-        }
+        if (neighbor.bundleSet.find(bundle.identification()) != neighbor.bundleSet.end()) continue;
+        return &bundle;
     }
     return nullptr;
 }
 
-void BaseDtnApp::Schedule_FerryToGround_Transfer(Ipv4Address groundIp) {
+void EpidemicBaseDtnApp::Schedule_FerryToGround_Transfer(Ipv4Address groundIp) {
     Time jitter = GetJitter();
+    Time jitter2 = GetJitter();
     RemoveExpiredBundles();
 
     auto bundlePtr = FerrySelectBundleToGround(groundIp);
     if (bundlePtr != nullptr) {
-        Simulator::Schedule(jitter, &BaseDtnApp::SendBundle, this, *bundlePtr, groundIp);
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundle, this, *bundlePtr, groundIp);
         return;
     }
 
-    Simulator::Schedule(jitter, &BaseDtnApp::SendFerryHello, this, groundIp);
-
+    Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendFerryHello, this, groundIp);
+    Simulator::Schedule(jitter + jitter2, &EpidemicBaseDtnApp::SendSumaryVector, this, groundIp);
 }
 
-void BaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
+void EpidemicBaseDtnApp::Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp) {
+    Time jitter = GetJitter();
+    RemoveExpiredBundles();
+
+    auto bundlePtr = FerrySelectBundleToFerry(ferryIp);
+    if (bundlePtr != nullptr) {
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundle, this, *bundlePtr, ferryIp);
+        return;
+    }
+}
+
+void EpidemicBaseDtnApp::Schedule_GroundToFerry_Transfer(Ipv4Address ferryIp) {
     Time jitter = GetJitter();
     RemoveExpiredBundles();
 
     auto bundlePtr = GroundSelectBundleToFerry(ferryIp);
     if (bundlePtr == nullptr)
         return; // no bundle to send
-    Simulator::Schedule(jitter, &BaseDtnApp::SendBundle, this, *bundlePtr, ferryIp);
+    Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundle, this, *bundlePtr, ferryIp);
 }
 
 #pragma endregion
 
 #pragma region Bundle Logic
 
-void BaseDtnApp::GenerateBundle() {
+void EpidemicBaseDtnApp::GenerateBundle() {
     double currentTime = Simulator::Now().GetSeconds();
     if (currentTime + (double)config.bundleTTL / 1000000.0 > config.simTime + config.warmupTime)
         return; // dont create new bundle 
@@ -581,6 +660,15 @@ void BaseDtnApp::GenerateBundle() {
     uint32_t dest = BundleGenerationHelper::ChoseBundleDestination(m_myIp.Get());
     b.destination = Ipv4Address(dest);
 
+    if (config.replicationBaseDtnAppMode == REP_DTN_EPIDEMIC) {
+        // EPIDEMIC
+        b.replication = 1;
+    }
+    if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
+        // SPRAY AND WAIT
+        b.replication = config.SnW_replications;
+    }
+
     m_buffer.push_back(b);
     Report::bundleCount++;
     Report::nodeBundleCount[rawNodeId(m_myIp.Get())][rawNodeId(dest)]++;
@@ -593,10 +681,10 @@ void BaseDtnApp::GenerateBundle() {
     // generate based on poisson distribution
     double jitter = bundleGenRand->GetValue(0.0, 1.0);
     double IAT = -log(1.0 - jitter) / m_bundleGenRate;
-    Simulator::Schedule(Seconds(IAT), &BaseDtnApp::GenerateBundle, this);
+    Simulator::Schedule(Seconds(IAT), &EpidemicBaseDtnApp::GenerateBundle, this);
 }
 
-void BaseDtnApp::BundleReachedDestination(Bundle b) {
+void EpidemicBaseDtnApp::BundleReachedDestination(Bundle b) {
     Report::bundleReachedDestination++;
     Report::nodeBundleReachedDestination[rawNodeId(b.source.Get())][rawNodeId(b.destination.Get())]++;
     Report::totalHopReachedDestination += b.hop;
@@ -606,7 +694,7 @@ void BaseDtnApp::BundleReachedDestination(Bundle b) {
     Report::delayList.push_back(Simulator::Now() - MicroSeconds(b.creationTime));
 }
 
-void BaseDtnApp::RemoveExpiredBundles() {
+void EpidemicBaseDtnApp::RemoveExpiredBundles() {
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
 
     m_buffer.erase(std::remove_if(m_buffer.begin(), m_buffer.end(), [&](const Bundle& b) {
@@ -624,7 +712,7 @@ void BaseDtnApp::RemoveExpiredBundles() {
 
 }
 
-void BaseDtnApp::RemoveOldBundle() {
+void EpidemicBaseDtnApp::RemoveOldBundle() {
     std::sort(m_buffer.begin(), m_buffer.end(), compareBundleTime);
     while (m_buffer.size() > m_maxBufferSize) {
         NS_LOG_UNCOND("Node " << nodeId[m_myIp.Get()] << ": DROPPED Bundle " << m_buffer[0].id);
@@ -632,7 +720,7 @@ void BaseDtnApp::RemoveOldBundle() {
     }
 }
 
-Bundle BaseDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
+Bundle EpidemicBaseDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
     Bundle b;
     for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
         if (it->id == bundleId && it->source.Get() == sourceIp) {
@@ -647,7 +735,26 @@ Bundle BaseDtnApp::RemoveAckedBundle(uint32_t bundleId, uint32_t sourceIp) {
     return b;
 }
 
-void BaseDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
+void EpidemicBaseDtnApp::DecreseAckedBundleReplication(uint32_t bundleId, uint32_t sourceIp) {
+    for (auto& b : m_buffer) {
+        if (b.id == bundleId && b.source.Get() == sourceIp) {
+            b.flag_waitingAck = false;
+            if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
+                if (config.SnW_binary) {
+                    b.replication -= std::max(uint32_t(1), b.replication / 2);
+                }
+                else {
+                    b.replication--;
+                }
+                if (b.replication == 0)
+                    RemoveAckedBundle(bundleId, sourceIp);
+            }
+            return;
+        }
+    }
+}
+
+void EpidemicBaseDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
     for (auto it = m_buffer.begin(); it != m_buffer.end(); ++it) {
         if (it->id == bundleId && it->source.Get() == sourceIp) {
             it->flag_waitingAck = false; // set flag = false so bundle can be transfered again later
@@ -660,7 +767,7 @@ void BaseDtnApp::BundleAckTimeout(uint32_t bundleId, uint32_t sourceIp) {
 
 #pragma region OnReceive
 
-void BaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
+void EpidemicBaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
     Ptr<Packet> packet;
     Address from;
     while ((packet = socket->RecvFrom(from))) {
@@ -708,12 +815,16 @@ void BaseDtnApp::ReceivePacket(Ptr<Socket> socket) {
             OnGroundReceiveFerryHello(topHeader.GetNodeIP(), packet);
             OnFerryReceiveFerryHello(topHeader.GetNodeIP(), packet);
         }
+        if (packetType == MessageTypeHeader::SUMARY_VECTOR) {
+            OnGroundReceiveSumaryVector(topHeader.GetNodeIP(), packet);
+            OnFerryReceiveSumaryVector(topHeader.GetNodeIP(), packet);
+        }
     }
 }
 
 //* ----- GROUND -----
 
-void BaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     uint64_t currentTime = Simulator::Now().GetMicroSeconds();
     uint32_t source = sourceIp.Get();
 
@@ -727,20 +838,22 @@ void BaseDtnApp::OnReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     OnFerryReceiveBeacon(sourceIp, packet);
 }
 
-void BaseDtnApp::OnGroundReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnGroundReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_FERRY) return;
 
     Time jitter = GetJitter();
-    Simulator::Schedule(jitter, &BaseDtnApp::SendGroundHello, this, sourceIp);
+    Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendGroundHello, this, sourceIp);
 }
 
-void BaseDtnApp::OnGroundReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnGroundReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_FERRY) return;
+
     if (algoConfig.sendVisitTimeInHello) {
         VisitTimeHeader vTimeHeader;
         packet->RemoveHeader(vTimeHeader);
         UpdateVisitTime(vTimeHeader.ToMap());
     }
+
     if (algoConfig.sendRouteInHello) {
         FerryRouteHeader ferryRouteHeader;
         packet->RemoveHeader(ferryRouteHeader);
@@ -749,15 +862,14 @@ void BaseDtnApp::OnGroundReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pac
         m_neighbor[sourceIp.Get()].group = ferryRouteHeader.GetGroup();
         m_neighbor[sourceIp.Get()].operationMode = ferryRouteHeader.GetMode();
     }
-    BufferStateHeader bufferStateHeader;
-    packet->RemoveHeader(bufferStateHeader);
-    m_neighbor[sourceIp.Get()].bufferState = bufferStateHeader.ToCountMap();
-    if (!bufferStateHeader.IsFull()) {
-        Schedule_GroundToFerry_Transfer(sourceIp);
+    if (algoConfig.sendBundleCountInHello) {
+        BufferStateHeader bufferStateHeader;
+        packet->RemoveHeader(bufferStateHeader);
+        m_neighbor[sourceIp.Get()].bufferState = bufferStateHeader.ToCountMap();
     }
 }
 
-void BaseDtnApp::OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_FERRY) return;
     BundleHeader bundleHeader;
     packet->RemoveHeader(bundleHeader);
@@ -771,39 +883,69 @@ void BaseDtnApp::OnGroundReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet)
 
     // NS_LOG_UNCOND("Bundle reached destination");
     Time jitter = GetJitter();
-    Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+    Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAck, this, bundle, sourceIp);
     BundleReachedDestination(bundle);
 
 }
 
-void BaseDtnApp::OnGroundReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnGroundReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_FERRY) return;
     BundleAckHeader bundleAckHeader;
     packet->RemoveHeader(bundleAckHeader);
-    RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    if (bundleAckHeader.GetAckMode() == BundleAckHeader::AckMode::ALLOW_DELETE) {
+        RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    }
+    m_neighbor[sourceIp.Get()].bundleSet.insert({ bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get() });
+    if (bundleAckHeader.GetAckMode() == BundleAckHeader::AckMode::NOT_ADDED_TO_BUFFER)
+        return; // nothing to do here
+
+    if (config.replicationBaseDtnAppMode == REP_DTN_EPIDEMIC) {
+        // EPIDEMIC
+        DecreseAckedBundleReplication(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    }
+    if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
+        // SPRAY AND WAIT
+        DecreseAckedBundleReplication(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    }
+    // no removing with epidemic protocol
+    // RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
     FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
 }
 
-void BaseDtnApp::OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnGroundReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_FERRY) return;
     if (nodeType[sourceIp.Get()] == NODE_TYPE_FERRY) {
         Schedule_GroundToFerry_Transfer(sourceIp);
     }
 }
 
+void EpidemicBaseDtnApp::OnGroundReceiveSumaryVector(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_FERRY) return;
+    SumaryVectorHeader sumaryVectorHeader;
+    packet->RemoveHeader(sumaryVectorHeader);
+    auto sumary = sumaryVectorHeader.GetBundleIds();
+    for (auto bundleId : sumary) {
+        m_neighbor[sourceIp.Get()].bundleSet.insert(bundleId);
+    }
+    if (sumaryVectorHeader.GetFinalVector()) {
+        Schedule_GroundToFerry_Transfer(sourceIp); // schedule transfer after sumary vector
+    }
+}
+
 //* ----- FERRY -----
 
-void BaseDtnApp::OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveBeacon(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (!config.enableFerryComm) return;
     if (m_nodeType == NODE_TYPE_GROUND) return;
 
     if (m_myIp < sourceIp) { // smaller ip node start the protocol
         Time jitter = GetJitter();
-        Simulator::Schedule(jitter, &BaseDtnApp::SendFerryHello, this, sourceIp);
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendFerryHello, this, sourceIp);
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendSumaryVector, this, sourceIp);
     }
 }
 
-void BaseDtnApp::OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
 
     if (m_nodeType == NODE_TYPE_GROUND) return;
     if (algoConfig.sendVisitTimeInHello) {
@@ -814,10 +956,10 @@ void BaseDtnApp::OnFerryReceiveGroundHello(Ipv4Address sourceIp, Ptr<Packet> pac
     Schedule_FerryToGround_Transfer(sourceIp);
 }
 
-void BaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (!config.enableFerryComm) return;
     if (m_nodeType == NODE_TYPE_GROUND) return;
-
+    // save neighbor infomation
     if (algoConfig.sendVisitTimeInHello) {
         VisitTimeHeader vTimeHeader;
         packet->RemoveHeader(vTimeHeader);
@@ -831,44 +973,20 @@ void BaseDtnApp::OnFerryReceiveFerryHello(Ipv4Address sourceIp, Ptr<Packet> pack
         m_neighbor[sourceIp.Get()].group = ferryRouteHeader.GetGroup();
         m_neighbor[sourceIp.Get()].operationMode = ferryRouteHeader.GetMode();
     }
-    BufferStateHeader bufferStateHeader;
-    packet->RemoveHeader(bufferStateHeader);
-    m_neighbor[sourceIp.Get()].bufferState = bufferStateHeader.ToCountMap();
-
-    Time jitter = GetJitter();
-
-    if (sourceIp < m_myIp) { // higher ip node return the hello
-        Simulator::Schedule(jitter, &BaseDtnApp::SendFerryHello, this, sourceIp);
-        return;
+    if (algoConfig.sendBundleCountInHello) {
+        BufferStateHeader bufferStateHeader;
+        packet->RemoveHeader(bufferStateHeader);
+        m_neighbor[sourceIp.Get()].bufferState = bufferStateHeader.ToCountMap();
     }
-    if (bufferStateHeader.IsFull()) { // neighbor cannot accept transfer
-        if (m_buffer.size() < m_maxBufferSize) { // can accept transfer, send hello to trigger transfer
-            Simulator::Schedule(jitter, &BaseDtnApp::SendFerryAcceptTransfer, this, sourceIp);
-            return;
-        }
-        return;
-    }
-
-    Bundle* bundlePtr = FerrySelectBundleToFerry(sourceIp);
-    if (bundlePtr == nullptr) {
-        Simulator::Schedule(jitter, &BaseDtnApp::SendFerryAcceptTransfer, this, sourceIp);
-        return;
-    }
-    Simulator::Schedule(jitter, &BaseDtnApp::SendBundle, this, *bundlePtr, sourceIp);
 }
 
-void BaseDtnApp::OnFerryReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveFerryAcceptTransfer(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_GROUND) return;
 
-    Bundle* bundlePtr = FerrySelectBundleToFerry(sourceIp);
-    if (bundlePtr == nullptr) { // have no bundle to send, neighbor also have no bundle to send, end the protcol
-        return;
-    }
-    Time jitter = GetJitter();
-    Simulator::Schedule(jitter, &BaseDtnApp::SendBundle, this, *bundlePtr, sourceIp);
+    Schedule_FerryToFerry_Transfer(sourceIp);
 }
 
-void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_GROUND) return;
     BundleHeader bundleHeader;
     packet->RemoveHeader(bundleHeader);
@@ -881,6 +999,12 @@ void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) 
     }
 
     RemoveExpiredBundles();
+    m_neighbor[sourceIp.Get()].bundleSet.insert(bundle.identification());
+
+    if (HaveBundle(bundle.identification())) {
+        Time jitter = GetJitter();
+        Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
+    }
     if (m_buffer.size() >= m_maxBufferSize) {
         NS_LOG_UNCOND("Bundle dropped due to buffer overflow");
         return;
@@ -898,10 +1022,10 @@ void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) 
 
     if (nodeType[sourceIp.Get()] == NODE_TYPE_GROUND) {
         if (hasBuffer) {
-            Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
+            Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
         }
         else {
-            Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+            Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAck, this, bundle, sourceIp);
         }
         return;
     }
@@ -910,35 +1034,66 @@ void BaseDtnApp::OnFerryReceiveBundle(Ipv4Address sourceIp, Ptr<Packet> packet) 
         Bundle* bundlePtr = FerrySelectBundleToFerry(sourceIp);
         if (bundlePtr == nullptr) {
             if (hasBuffer) {
-                Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
+                Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAckAndAcceptTransfer, this, bundle, sourceIp);
             }
             else {
-                Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+                Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAck, this, bundle, sourceIp);
             }
         }
         else {
-            Simulator::Schedule(jitter, &BaseDtnApp::SendBundleAck, this, bundle, sourceIp);
-            Simulator::Schedule(jitter2, &BaseDtnApp::SendBundle, this, *bundlePtr, sourceIp);
+            Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendBundleAck, this, bundle, sourceIp);
+            Simulator::Schedule(jitter2, &EpidemicBaseDtnApp::SendBundle, this, *bundlePtr, sourceIp);
         }
         return;
     }
 
 }
 
-void BaseDtnApp::OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
+void EpidemicBaseDtnApp::OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packet> packet) {
     if (m_nodeType == NODE_TYPE_GROUND) return;
     BundleAckHeader bundleAckHeader;
     packet->RemoveHeader(bundleAckHeader);
 
-    Bundle bundleCopy = RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
-    RemoveExpiredBundles();
-    FerryVisualizer::logBuffer(nodeId[m_myIp.Get()], m_buffer);
-
-    BundleAckMobilityCallBack(bundleCopy);
+    if (bundleAckHeader.GetAckMode() == BundleAckHeader::AckMode::ALLOW_DELETE) {
+        RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+    }
+    m_neighbor[sourceIp.Get()].bundleSet.insert({ bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get() });
+    if (bundleAckHeader.GetAckMode() != BundleAckHeader::AckMode::NOT_ADDED_TO_BUFFER) {
+        if (config.replicationBaseDtnAppMode == REP_DTN_EPIDEMIC) {
+            // EPIDEMIC
+            DecreseAckedBundleReplication(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+        }
+        if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
+            // SPRAY AND WAIT
+            DecreseAckedBundleReplication(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
+        }
+    }
 
     if (nodeType[sourceIp.Get()] == NODE_TYPE_GROUND) {
         Schedule_FerryToGround_Transfer(sourceIp);
     }
+    // if (nodeType[sourceIp.Get()] == NODE_TYPE_FERRY) {
+    //     Schedule_FerryToFerry_Transfer(sourceIp);
+    // }
 }
 
+void EpidemicBaseDtnApp::OnFerryReceiveSumaryVector(Ipv4Address sourceIp, Ptr<Packet> packet) {
+    if (m_nodeType == NODE_TYPE_GROUND) return;
+    SumaryVectorHeader sumaryVectorHeader;
+    packet->RemoveHeader(sumaryVectorHeader);
+    auto sumary = sumaryVectorHeader.GetBundleIds();
+    for (auto bundleId : sumary) {
+        m_neighbor[sourceIp.Get()].bundleSet.insert(bundleId);
+    }
+    if (sumaryVectorHeader.GetFinalVector()) {
+        Schedule_FerryToFerry_Transfer(sourceIp); // schedule transfer after sumary vector
+        if (sourceIp < m_myIp) { // higher ip node return the hello
+            auto jitter = GetJitter();
+            auto jitter2 = GetJitter();
+            Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendFerryHello, this, sourceIp);
+            Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendSumaryVector, this, sourceIp);
+            return;
+        }
+    }
+}
 #endif
