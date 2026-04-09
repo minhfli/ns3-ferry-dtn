@@ -6,7 +6,7 @@ PROGRAM2 = "ferryrep"
 
 params = {
     "seed": 762227828,
-    "name": "TABAF", # algorithm name
+    "name": "DHUB", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "debug", # run name for log file
@@ -38,7 +38,7 @@ params = {
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
     "bundleTTL": 600000000, # microsec
-    "ferryComm": False, # enable communication between ferry
+    "ferryComm": True, # enable communication between ferry
 }
 
 if params["name"].startswith("SNW") or params["name"].startswith("EPIDEMIC"):

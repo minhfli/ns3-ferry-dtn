@@ -50,6 +50,17 @@ struct waypoint2D {
 
 typedef std::vector<waypoint2D> FerryRoute;
 
+double GetFerryRouteLength(const FerryRoute& route, double hoverTime = 0, double speed = 0) {
+    double length = 0;
+    for (uint32_t i = 0; i < route.size() - 1; i++) {
+        length += dist(route[i].pos, route[i + 1].pos);
+    }
+    length += dist(route[route.size() - 1].pos, route[0].pos);
+    length += hoverTime * speed * route.size(); // account for hover time and speed
+
+    return length;
+}
+
 struct WeightedDeadline {
     WeightedDeadline(double w, double t) : weight(w), time(t) {}
     double weight;

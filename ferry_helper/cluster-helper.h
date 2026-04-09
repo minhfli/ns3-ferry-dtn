@@ -928,5 +928,6 @@ namespace Clustering { // TODO Implement more
         NS_LOG_UNCOND("Route extend - Best reward:" << globalBestSolution.reward);
         return BMTC_RE_extend(globalBestSolution, points, baseClusters, hubPos, expectedRouteLengthCap);
     }
+
 };
 #endif 

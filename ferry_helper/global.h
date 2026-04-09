@@ -43,6 +43,8 @@ std::unordered_map<uint32_t, uint8_t> nodeGroup;
 std::unordered_map<uint32_t, std::string> nodeId;
 // mapping from IP bundle generation rate, (bundle/sec) only tabara algorithm use this
 std::unordered_map<uint32_t, double> nodeGenRate;
+// mapping from IP to node index, note that both ground and ferry start at 0
+std::unordered_map<uint32_t, uint32_t> nodeIndex;
 
 
 // get node id without prefix

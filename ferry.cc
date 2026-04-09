@@ -47,6 +47,7 @@
 #include "ferry_app/hub-coupling-dtn-app.h"
 #include "ferry_app/virtual-hub-coupling-dtn-app.h"
 #include "ferry_app/hub-cluster-dtn-app.h"
+#include "ferry_app/hub-deadline-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -101,7 +102,9 @@ Ptr<BaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "CHUB") {
         return CreateObject<HubBasedClusteringDtnApp>();
     }
-
+    if (config.ALGORITHM_NAME == "DHUB") {
+        return CreateObject<HubDeadlineClusteringDtnApp>();
+    }
     return nullptr;
 }
 
@@ -120,6 +123,7 @@ uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "HUB") return config.nFerrys;
     if (config.ALGORITHM_NAME == "VHUB") return config.nFerrys;
     if (config.ALGORITHM_NAME == "CHUB") return config.nFerrys;
+    if (config.ALGORITHM_NAME == "DHUB") return 1;
 
     return 1;
 }
@@ -169,6 +173,10 @@ void CallGlobalFerryAppSetup(const std::vector<std::vector<uint32_t>>& clusters)
     }
     if (config.ALGORITHM_NAME == "CHUB") {
         CHUB::FerrySetup();
+        return;
+    }
+    if (config.ALGORITHM_NAME == "DHUB") {
+        DHUB::FerrySetup();
         return;
     }
     return;
@@ -340,6 +348,7 @@ int main(int argc, char* argv[]) {
             nodeType[address.Get()] = NODE_TYPE_GROUND;
             nodeId[address.Get()] = "g" + std::to_string(gNode->GetId());
             nodeGroup[address.Get()] = group;
+            nodeIndex[address.Get()] = n;
 
             gNode->AddApplication(app);
             app->Setup(gNode, socket, address, config.groundBufferSize, NODE_TYPE_GROUND);
@@ -363,6 +372,7 @@ int main(int argc, char* argv[]) {
         nodeType[address.Get()] = NODE_TYPE_FERRY;
         nodeId[address.Get()] = "f" + std::to_string(fNode->GetId());
         ferryIps.push_back(address);
+        nodeIndex[address.Get()] = n;
 
         if (groupCount == 1) {
             nodeGroup[address.Get()] = 0;

@@ -64,6 +64,10 @@ class BaseDtnApp : public Application {
      */
     virtual void InitializeMobility(const std::vector<uint32_t>& servingNodesIndex) = 0;
 
+    // Lấy danh sách deadline của từng node index
+    std::vector<std::vector<double>> GetDeadlines();
+    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
+
     protected:
     void StartApplication(void) override;
     void StopApplication(void) override;
@@ -77,9 +81,6 @@ class BaseDtnApp : public Application {
     virtual std::vector<uint64_t> GetServingExpectedArrival();
 
     std::map<uint32_t, uint32_t> GetBundleCount() const;
-    // Lấy danh sách deadline của từng node index
-    std::vector<std::vector<double>> GetDeadlines();
-    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
 
