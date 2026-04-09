@@ -86,6 +86,7 @@ class MultiRouteDeadlineAwareShortcutDtnApp : public BaseDtnApp {
 
     protected:
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
+    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines() override;
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
     virtual void ScheduleNextWaypoint() override;
@@ -96,6 +97,7 @@ class MultiRouteDeadlineAwareShortcutDtnApp : public BaseDtnApp {
 
     std::vector<uint32_t> m_ferryRoute; // indexes of the ground node pos array
 
+    // std::map<std::pair<uint32_t, uint32_t>, double> m_routeDistance;
     bool m_reachedFirstNode = false;
 
     int m_direction;
@@ -282,8 +284,19 @@ std::vector<uint32_t> MultiRouteDeadlineAwareShortcutDtnApp::GetServingNodeRoute
     // return { groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get() };
 }
 
-#pragma endregion
-#pragma region Bundle
-
+std::vector<std::vector<WeightedDeadline>> MultiRouteDeadlineAwareShortcutDtnApp::GetWeightedDeadlines() {
+    RemoveExpiredBundles();
+    std::vector<std::vector<WeightedDeadline>> deadlines;
+    deadlines.resize(config.nGrounds);
+    for (auto bundle : m_buffer) {
+        uint32_t node = rawNodeId(bundle.destination.Get());
+        double dl = bundle.creationTime + config.bundleTTL; //microsec
+        dl /= 1000000.0;
+        point2D A = nodePos(bundle.source.Get());
+        point2D B = nodePos(bundle.destination.Get());
+        deadlines[node].push_back({ distSq(A,B), dl });
+    }
+    return deadlines;
+}
 #pragma endregion
 #endif 

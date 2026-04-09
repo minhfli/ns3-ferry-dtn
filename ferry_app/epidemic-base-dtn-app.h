@@ -79,7 +79,7 @@ class EpidemicBaseDtnApp : public Application {
     std::map<uint32_t, uint32_t> GetBundleCount() const;
     // Lấy danh sách deadline của từng node index
     std::vector<std::vector<double>> GetDeadlines();
-    std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
+    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
     // Có bundle này trong buffer không ?
@@ -309,6 +309,7 @@ std::vector<std::vector<double>> EpidemicBaseDtnApp::GetDeadlines() {
     }
     return deadlines;
 }
+
 std::vector<std::vector<WeightedDeadline>> EpidemicBaseDtnApp::GetWeightedDeadlines() {
     RemoveExpiredBundles();
     std::vector<std::vector<WeightedDeadline>> deadlines;
@@ -445,7 +446,10 @@ void EpidemicBaseDtnApp::SendBundle(Bundle& bundle, Ipv4Address neighborIp) {
     }
     if (config.replicationBaseDtnAppMode == REP_DTN_SNW) {
         // SPRAY AND WAIT
-        bundleHeader.SetReplication(std::max((uint32_t)1, bundle.replication / 2));
+        if (config.SnW_binary)
+            bundleHeader.SetReplication(std::max((uint32_t)1, bundle.replication / 2));
+        else
+            bundleHeader.SetReplication(1);
     }
 
     bundle.flag_waitingAck = true;
@@ -518,22 +522,28 @@ void EpidemicBaseDtnApp::SendSumaryVector(Ipv4Address neighborIp) {
     std::vector<SumaryVectorHeader> sumaryVectorList;
     RemoveExpiredBundles();
     uint32_t n = m_buffer.size();
-    uint32_t sumarized = 0;
-    while (sumarized < n) {
-        uint32_t sumaryCount = std::min(config.maxBundlePerSumary, n - sumarized);
+    if (n == 0) {
         SumaryVectorHeader svHeader;
-        svHeader.SetCount(sumaryCount);
-        svHeader.SetFinalVector(false);
-        if (sumarized + sumaryCount == n) {
-            svHeader.SetFinalVector(true);
-        }
-        std::vector<BundleIdentification> bundleList;
-        for (uint32_t i = 0; i < sumaryCount; i++) {
-            bundleList.push_back({ m_buffer[sumarized + i].id, m_buffer[sumarized + i].source.Get() });
-        }
-        svHeader.SetBundleIds(bundleList);
+        svHeader.SetCount(0);
+        svHeader.SetFinalVector(true); // special case
         sumaryVectorList.push_back(svHeader);
-        sumarized += sumaryCount;
+    }
+    else {
+        uint32_t sumarized = 0;
+        while (sumarized < n) {
+            uint32_t sumaryCount = std::min(config.maxBundlePerSumary, n - sumarized);
+            SumaryVectorHeader svHeader;
+            svHeader.SetCount(sumaryCount);
+            svHeader.SetFinalVector(false);
+            std::vector<BundleIdentification> bundleList;
+            for (uint32_t i = 0; i < sumaryCount; i++) {
+                bundleList.push_back(m_buffer[sumarized + i].identification());
+            }
+            svHeader.SetBundleIds(bundleList);
+            sumaryVectorList.push_back(svHeader);
+            sumarized += sumaryCount;
+        }
+        sumaryVectorList.back().SetFinalVector(true);
     }
     Time jitter = Time(0);
     for (auto svHeader : sumaryVectorList) {
@@ -600,6 +610,7 @@ Bundle* EpidemicBaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
     for (Bundle& bundle : m_buffer) {
         if (bundle.flag_waitingAck) continue;
         if (neighbor.bundleSet.find(bundle.identification()) != neighbor.bundleSet.end()) continue;
+        if (config.replicationBaseDtnAppMode == REP_DTN_SNW && bundle.replication == 1) continue;
         return &bundle;
     }
     return nullptr;
@@ -607,7 +618,6 @@ Bundle* EpidemicBaseDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
 
 void EpidemicBaseDtnApp::Schedule_FerryToGround_Transfer(Ipv4Address groundIp) {
     Time jitter = GetJitter();
-    Time jitter2 = GetJitter();
     RemoveExpiredBundles();
 
     auto bundlePtr = FerrySelectBundleToGround(groundIp);
@@ -617,7 +627,7 @@ void EpidemicBaseDtnApp::Schedule_FerryToGround_Transfer(Ipv4Address groundIp) {
     }
 
     Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendFerryHello, this, groundIp);
-    Simulator::Schedule(jitter + jitter2, &EpidemicBaseDtnApp::SendSumaryVector, this, groundIp);
+    Simulator::Schedule(jitter, &EpidemicBaseDtnApp::SendSumaryVector, this, groundIp);
 }
 
 void EpidemicBaseDtnApp::Schedule_FerryToFerry_Transfer(Ipv4Address ferryIp) {
@@ -685,11 +695,15 @@ void EpidemicBaseDtnApp::GenerateBundle() {
 }
 
 void EpidemicBaseDtnApp::BundleReachedDestination(Bundle b) {
+    Report::totalHop++;
+    Report::bundleFowardCount++;
+    if (m_successTranfered.find(b.identification()) != m_successTranfered.end()) {
+        return;
+    }
+    m_successTranfered.insert(b.identification());
     Report::bundleReachedDestination++;
     Report::nodeBundleReachedDestination[rawNodeId(b.source.Get())][rawNodeId(b.destination.Get())]++;
     Report::totalHopReachedDestination += b.hop;
-    Report::totalHop++;
-    Report::bundleFowardCount++;
     Report::totalDelay += Simulator::Now() - MicroSeconds(b.creationTime);
     Report::delayList.push_back(Simulator::Now() - MicroSeconds(b.creationTime));
 }
@@ -1055,6 +1069,7 @@ void EpidemicBaseDtnApp::OnFerryReceiveBundleAck(Ipv4Address sourceIp, Ptr<Packe
     packet->RemoveHeader(bundleAckHeader);
 
     if (bundleAckHeader.GetAckMode() == BundleAckHeader::AckMode::ALLOW_DELETE) {
+        m_successTranfered.insert({ bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get() });
         RemoveAckedBundle(bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get());
     }
     m_neighbor[sourceIp.Get()].bundleSet.insert({ bundleAckHeader.GetBundleId(), bundleAckHeader.GetSourceIp().Get() });

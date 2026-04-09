@@ -89,6 +89,9 @@ class SNW_MRDLAS_DtnApp : public EpidemicBaseDtnApp {
 
     protected:
     virtual std::vector<uint32_t> GetServingNodeRoute() override;
+    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines() override;
+
+    // virtual Bundle* FerrySelectBundleToFerry(Ipv4Address neighborIp) override;
 
     // virtual void ReceivePacket(Ptr<Socket> socket);
     virtual void ScheduleNextWaypoint() override;
@@ -282,8 +285,22 @@ std::vector<uint32_t> SNW_MRDLAS_DtnApp::GetServingNodeRoute() {
     // return { groundNodeIps[m_ferryRoute[m_nextFerryIndex]].Get() };
 }
 
+std::vector<std::vector<WeightedDeadline>> SNW_MRDLAS_DtnApp::GetWeightedDeadlines() {
+    RemoveExpiredBundles();
+    std::vector<std::vector<WeightedDeadline>> deadlines;
+    deadlines.resize(config.nGrounds);
+    for (auto bundle : m_buffer) {
+        uint32_t node = rawNodeId(bundle.destination.Get());
+        double dl = bundle.creationTime + config.bundleTTL; //microsec
+        dl /= 1000000.0;
+        deadlines[node].push_back({ bundle.replication, dl });
+    }
+    return deadlines;
+}
+
 #pragma endregion
 #pragma region Bundle
+
 
 #pragma endregion
 #endif 

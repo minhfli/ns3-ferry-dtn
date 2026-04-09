@@ -34,6 +34,7 @@
 
 #include "ferry_app/epidemic-base-dtn-app.h"
 #include "ferry_app/snw-mrdlas-dtn-app.h"
+#include "ferry_app/snw-tabaf-dtn-app.h"
 
 #include <vector>
 #include <algorithm>
@@ -49,12 +50,16 @@ Ptr<EpidemicBaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "SNW_MRDLAS") {
         return CreateObject<SNW_MRDLAS_DtnApp>();
     }
+    if (config.ALGORITHM_NAME == "SNW_TABAF") {
+        return CreateObject<SNW_TABAF_DtnApp>();
+    }
 
     return nullptr;
 }
 
 uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "SNW_MRDLAS")  return 1;
+    if (config.ALGORITHM_NAME == "SNW_TABAF")  return 1;
     return 1;
 }
 

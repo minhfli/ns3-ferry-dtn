@@ -6,21 +6,21 @@ PROGRAM2 = "ferryrep"
 
 params = {
     "seed": 762227828,
-    "name": "SNW_MRDLAS", # algorithm name
+    "name": "TABAF", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "testRE2", # run name for log file
-    "simTime": 5000,
+    "run": "debug", # run name for log file
+    "simTime": 10000,
     "warmupTime": 500,
     "hoverTime": 5,
     "nGrounds": 45,
-    "nFerrys": 10,
+    "nFerrys": 5,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
-    "SnW_replications": 16,
+    "SnW_replications": 2,
     "waypointSelectMode" :"DETERMINISTIC",
-    "MRDLAS_weightedDeadline": False,
-    "TABAF_weightedDeadline": True,
+    "MRDLAS_weightedDeadline": True,
+    # "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     "CHUB_routeExtend": True,
@@ -31,14 +31,14 @@ params = {
     "areaWidth": 4000,
     "ferrySpeed": 12,
     "groundBufferSize": 1000,
-    "ferryBufferSize": 500,
+    "ferryBufferSize": 1000,
     "minGenRate": 10.0, # sec/packet
     "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
-    "bundleTTL": 1200000000, # microsec
-    "ferryComm": True, # enable communication between ferry
+    "bundleTTL": 600000000, # microsec
+    "ferryComm": False, # enable communication between ferry
 }
 
 if params["name"].startswith("SNW") or params["name"].startswith("EPIDEMIC"):

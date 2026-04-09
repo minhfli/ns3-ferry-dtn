@@ -79,7 +79,7 @@ class BaseDtnApp : public Application {
     std::map<uint32_t, uint32_t> GetBundleCount() const;
     // Lấy danh sách deadline của từng node index
     std::vector<std::vector<double>> GetDeadlines();
-    std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
+    virtual std::vector<std::vector<WeightedDeadline>> GetWeightedDeadlines();
     // Lấy danh sách node mà neighbor ferry sẽ đến thăm trước ferry hiện tại
     std::set<uint32_t> GetFasterNeighborWaypoints(NeighborInfomation neighbor);
 
@@ -298,6 +298,7 @@ std::vector<std::vector<double>> BaseDtnApp::GetDeadlines() {
     }
     return deadlines;
 }
+
 std::vector<std::vector<WeightedDeadline>> BaseDtnApp::GetWeightedDeadlines() {
     RemoveExpiredBundles();
     std::vector<std::vector<WeightedDeadline>> deadlines;
