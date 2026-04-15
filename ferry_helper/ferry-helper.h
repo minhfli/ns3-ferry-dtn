@@ -146,6 +146,10 @@ std::vector<point2D> PoissonDisk_RandomSample(uint32_t n, double r, double areaW
     return points;
 }
 
+std::vector<point2D> UnitDiskCover(std::vector<point2D> points, double r) {
+    return {};
+}
+
 uint64_t CalExpectedArrival(const uint32_t node, const std::vector<uint32_t> nodeIps, const std::vector<uint64_t> visitTime) {
     for (uint32_t i = 0; i < nodeIps.size(); i++) {
         if (nodeIps[i] == node) {
