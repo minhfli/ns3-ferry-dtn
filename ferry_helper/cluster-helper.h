@@ -345,6 +345,136 @@ namespace Clustering { // TODO Implement more
         }
     };
 
+    struct BMTC_TwoPart_Chromosome {
+        std::vector<uint32_t> permutation; // Thứ tự
+        std::vector<uint32_t> routeLengths; // Số điểm cho mỗi uav
+        uint32_t clusterCount = 1;
+        double cost;
+
+        bool operator<(const BMTC_TwoPart_Chromosome& other) const {
+            return cost < other.cost;
+        }
+
+        ClusterSolution GetCluster() const {
+            ClusterSolution clusters(clusterCount);
+            uint32_t idx = 0;
+            for (uint32_t i = 0; i < clusterCount; i++) {
+                for (uint32_t j = 0; j < routeLengths[i]; j++) {
+                    clusters[i].push_back(permutation[idx++]);
+                }
+            }
+            return clusters;
+        }
+
+        static BMTC_TwoPart_Chromosome RandomSample(uint32_t n, uint32_t k) {
+            BMTC_TwoPart_Chromosome chromosome;
+
+            chromosome.clusterCount = k;
+            chromosome.routeLengths = std::vector<uint32_t>(k, 1);
+            chromosome.permutation = DataStructureHelper::GetShuffleIndexVector(n);
+            int remaining_points = n - k;
+            for (int r = 0; r < remaining_points; r++) {
+                chromosome.routeLengths[rand() % k]++;
+            }
+            return chromosome;
+        }
+
+        static std::pair<BMTC_TwoPart_Chromosome, BMTC_TwoPart_Chromosome> Crossover(const BMTC_TwoPart_Chromosome& p1, const BMTC_TwoPart_Chromosome& p2) {
+            uint32_t n = p1.permutation.size();
+            uint32_t k = p1.routeLengths.size();
+
+            BMTC_TwoPart_Chromosome c1 = p1;
+            BMTC_TwoPart_Chromosome c2 = p2;
+
+            // part 1 order crossover 
+            uint32_t start = rand() % n;
+            uint32_t end = rand() % n;
+            if (start > end) std::swap(start, end);
+
+            auto applyOX = [&](const std::vector<uint32_t>& parent1, const std::vector<uint32_t>& parent2, std::vector<uint32_t>& child) {
+                std::vector<bool> in_child(n, false);
+
+                // Copy đoạn gene ở giữa từ parent1 sang child
+                for (uint32_t i = start; i <= end; i++) {
+                    child[i] = parent1[i];
+                    in_child[parent1[i]] = true;
+                }
+
+                // Điền các phần tử còn lại từ parent2 (bắt đầu từ vị trí end + 1)
+                uint32_t curr_idx = (end + 1) % n;
+                for (uint32_t i = 0; i < n; i++) {
+                    uint32_t p2_idx = (end + 1 + i) % n;
+                    if (!in_child[parent2[p2_idx]]) {
+                        child[curr_idx] = parent2[p2_idx];
+                        curr_idx = (curr_idx + 1) % n;
+                    }
+                }
+                };
+
+            applyOX(p1.permutation, p2.permutation, c1.permutation);
+            applyOX(p2.permutation, p1.permutation, c2.permutation);
+
+
+            // part 2 REPAIRED 1-POINT CROSSOVER
+            if (k > 1) { // Chỉ lai ghép routeLengths nếu có nhiều hơn 1 cụm
+                uint32_t cut_point = rand() % k;
+
+                auto applyRouteLengthCrossover = [&](const std::vector<uint32_t>& r1, const std::vector<uint32_t>& r2, std::vector<uint32_t>& c_r) {
+                    int sum = 0;
+                    // Nửa đầu lấy từ r1, nửa sau lấy từ r2
+                    for (uint32_t i = 0; i <= cut_point; i++) { c_r[i] = r1[i]; sum += r1[i]; }
+                    for (uint32_t i = cut_point + 1; i < k; i++) { c_r[i] = r2[i]; sum += r2[i]; }
+
+                    // Cơ chế Repair (Sửa lỗi) để đảm bảo tổng số điểm bằng n và mỗi xe có >= 1 điểm
+                    int diff = static_cast<int>(n) - sum;
+
+                    // Nếu thiếu điểm -> cộng thêm ngẫu nhiên vào các xe
+                    while (diff > 0) {
+                        c_r[rand() % k]++;
+                        diff--;
+                    }
+                    // Nếu thừa điểm -> trừ bớt ngẫu nhiên (chỉ trừ ở những xe có > 1 điểm)
+                    while (diff < 0) {
+                        uint32_t idx = rand() % k;
+                        if (c_r[idx] > 1) {
+                            c_r[idx]--;
+                            diff++;
+                        }
+                    }
+                    };
+
+                applyRouteLengthCrossover(p1.routeLengths, p2.routeLengths, c1.routeLengths);
+                applyRouteLengthCrossover(p2.routeLengths, p1.routeLengths, c2.routeLengths);
+            }
+
+            return { c1, c2 };
+        }
+
+        static BMTC_TwoPart_Chromosome Mutate(BMTC_TwoPart_Chromosome p, double mutateProb = 0.2) {
+            // Đột biến Phần 1: Swap 2 điểm đến ngẫu nhiên
+            if ((rand() % 100) < mutateProb * 100) {
+                uint32_t n = p.permutation.size();
+                uint32_t idx1 = rand() % n;
+                uint32_t idx2 = rand() % n;
+                std::swap(p.permutation[idx1], p.permutation[idx2]);
+            }
+
+            // Đột biến Phần 2: Chuyển 1 điểm từ uav này sang uav khác
+            if ((rand() % 100) < mutateProb * 100) {
+                if (p.clusterCount > 1) {
+                    uint32_t r1 = rand() % p.clusterCount;
+                    uint32_t r2 = rand() % p.clusterCount;
+                    // Đảm bảo xe r1 không bị rỗng điểm (để lại ít nhất 1)
+                    if (r1 != r2 && p.routeLengths[r1] > 1) {
+                        p.routeLengths[r1]--;
+                        p.routeLengths[r2]++;
+                    }
+                }
+            }
+            return p;
+        }
+    };
+
 
     point2D BMTC_refineHubPosition(const std::vector<point2D>& points, ClusterSolution clusters, const std::vector<double>& cost, point2D basePos, uint32_t ITERATION = 50, double LEARNING_RATE = 0.1) {
 
@@ -683,6 +813,45 @@ namespace Clustering { // TODO Implement more
         return clusters;
     }
 
+    ClusterSolution BalancedMT_wCenterClustering_GA_v2(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+        uint32_t LOG_ITERATION = 1000;
+        BMTC_routeLengthCap = expectedRouteLengthCap;
+        NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA v2");
+        // generate initial population
+        std::vector<BMTC_TwoPart_Chromosome> population(population_size);
+        for (uint32_t i = 0; i < population_size; i++) {
+            population[i] = BMTC_TwoPart_Chromosome::RandomSample(points.size(), k);
+            population[i].cost = BMTC_ComputeCost(population[i].GetCluster(), points);
+        }
+
+        std::sort(population.begin(), population.end());
+
+        for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
+            std::vector<BMTC_TwoPart_Chromosome> new_population;
+            for (uint32_t i = 0; i < population_size / 2; i++) {
+                auto [p1, p2] = BMTC_TwoPart_Chromosome::Crossover(population[i], population[i + 1]);
+                p1 = BMTC_TwoPart_Chromosome::Mutate(p1);
+                p2 = BMTC_TwoPart_Chromosome::Mutate(p2);
+                p1.cost = BMTC_ComputeCost(p1.GetCluster(), points);
+                p2.cost = BMTC_ComputeCost(p2.GetCluster(), points);
+                new_population.push_back(p1);
+                new_population.push_back(p2);
+            }
+            population.insert(population.end(), new_population.begin(), new_population.end());
+            std::sort(population.begin(), population.end());
+            population.resize(population_size);
+            if (generation % LOG_ITERATION == 0) {
+                NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
+            }
+        }
+
+        point2D hubPos;
+        BMTC_ComputeCost(population[0].GetCluster(), points, &hubPos);
+
+        auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
+        clusters = BMTC_localSearch(points, clusters, k);
+        return clusters;
+    }
     ClusterSolution BalancedMT_fixedHub_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, point2D hubPos, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 200;
         BMTC_routeLengthCap = expectedRouteLengthCap;
@@ -842,7 +1011,7 @@ namespace Clustering { // TODO Implement more
         const point2D hubPos,
         // const double expectedRouteLengthCap,
         uint32_t multi_start = 500,
-        double starting_temperature = 1.2,
+        double starting_temperature = 1.5,
         double cooling = 0.95
     ) {
         uint32_t n = points.size();

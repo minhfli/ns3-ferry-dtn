@@ -34,6 +34,9 @@ std::vector<double> groundReceiveChances;
 std::vector<double> groundGenRate;
 // array of node ip !!! THIS IS NOT A MAP
 std::vector<Ipv4Address> ferryIps;
+// array of unit disk centers (pos, coverNodes)!!! THIS IS NOT A MAP 
+std::vector<waypoint2D> UdcWaypoints;
+
 
 // mapping from IP to type
 std::unordered_map<uint32_t, uint8_t> nodeType;

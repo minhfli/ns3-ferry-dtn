@@ -27,10 +27,10 @@ namespace CHUB {
 
     ClusterSolution GetCluster() {
         if (config.CHUB_virtualHub) {
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
                 groundNodePos, config.nFerrys,
                 (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.5,
-                 200, 7000);
+                 500, 10000);
         }
         else { // use 1 uav as real hub
             m_clusters = Clustering::BalancedMT_wCenterClustering_GA(

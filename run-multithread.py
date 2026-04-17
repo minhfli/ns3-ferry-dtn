@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
-BATCH = "20260406_noHover"
+BATCH = "20260415_5s"
 BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -33,8 +33,8 @@ base_params = {
     "ferryHeight": 50,
     "areaWidth": 4000,
     "ferrySpeed": 12,
-    "hoverTime": 0,
-    "minGenRate": 10.0, # sec/packet
+    "hoverTime": 5,
+    "minGenRate": 5.0, # sec/packet
     "maxGenRate": 15.0, # sec
     "genSrcScheduler": "RANDOM_RANGE",
     "genDstScheduler": "PARETO_6040",
@@ -45,20 +45,20 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "MRDLAS", "VHUB", "CHUB"],
+    "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "VHUB", "CHUB"],
+    # "name": [ "MRDLAS", "PIGEON"],
     # "name": ["CHUB"],
-    "name": [ "CHUB"],
 
-    "nGrounds": [45],
-    # "nFerrys": [20], 
-    "nFerrys": [ 5, 7, 10, 12, 15, 20],
-    # "nFerrys": [ 10, 15],
+    "nGrounds": [50],
+    "nFerrys": [15], 
+    # "nFerrys": [ 10, 15, 20],
+    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
 
-    "groundBufferSize": [1000],
-    # "ferryBufferSize": [ 50, 100, 150, 200, 500],
-    "ferryBufferSize": [500],
+    "groundBufferSize": [10000],
+    "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
+    # "ferryBufferSize": [1000],
 
-    "bundleTTL": [  450000000, 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
+    "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
     # "bundleTTL": [450000000], 
     # "bundleTTL": [600000000, 900000000], 
 

@@ -166,9 +166,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
             currentTime + time,
             config.ferrySpeed,
             config.hoverTime,
-            &cost,
-            50,
-            500
+            &cost
         );
 
         // cannot sastify all deadlines or buffer full -> switch to pigeon mode
@@ -182,8 +180,7 @@ void PigeonDtnApp::ScheduleFerryWaypoint() {
                 currentTime,
                 config.ferrySpeed,
                 config.hoverTime,
-                &newCost,
-                50, 500
+                &newCost
             );
 
             if (newCost < cost || m_buffer.size() >= m_maxBufferSize) {

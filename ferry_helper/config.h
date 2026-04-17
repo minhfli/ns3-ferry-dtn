@@ -59,11 +59,17 @@ struct Config {
     double simTime = 5000.0; // seconds
     double warmupTime = 300.0; // seconds
     double commRange = 150.0; // meters
+    double udcRadius = 120.0; // meters, use as safe radius
     double ferryHeight = 50.0; // meters
     double areaWidth = 4000; // meters
     double areaPadding = 0; // padding to avoid node on edge of the map
     uint32_t nGrounds = 25;
     uint32_t nFerrys = 5;
+
+    // UDC based config
+    bool UDC_enabled = false;
+    double UDC_radius = 120;
+    double UDC_genMinDist = 10;
 
     // node config
     double beaconInterval = 4.0;    // seconds
@@ -183,6 +189,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("simTime", "Simulation time", config.simTime);
     cmd.AddValue("warmupTime", "Warmup time", config.warmupTime);
     cmd.AddValue("commRange", "Communication range", config.commRange);
+    cmd.AddValue("udcRadius", "Unit disk radius", config.udcRadius);
     cmd.AddValue("ferryHeight", "Ferry height", config.ferryHeight);
     cmd.AddValue("areaWidth", "Area width", config.areaWidth);
     cmd.AddValue("nGrounds", "Number of ground nodes", config.nGrounds);

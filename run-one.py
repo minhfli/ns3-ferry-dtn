@@ -6,15 +6,15 @@ PROGRAM2 = "ferryrep"
 
 params = {
     "seed": 762227828,
-    "name": "DHUB", # algorithm name
+    "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "debug", # run name for log file
+    "run": "debugv2", # run name for log file
     "simTime": 10000,
     "warmupTime": 500,
     "hoverTime": 5,
     "nGrounds": 45,
-    "nFerrys": 5,
+    "nFerrys": 10,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
     "SnW_replications": 2,
@@ -23,7 +23,7 @@ params = {
     # "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
-    "CHUB_routeExtend": True,
+    "CHUB_routeExtend": False,
     # "CHUB_reWait": True,
     #* default config
     "commRange": 150,

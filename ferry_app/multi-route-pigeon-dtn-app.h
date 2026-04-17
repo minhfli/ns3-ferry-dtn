@@ -161,16 +161,14 @@ void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                currentTime + timeToReach,
                config.ferrySpeed,
                config.hoverTime,
-               &cost1,
-               80, 1000
+               &cost1
             );
             route2 = TSPDeadlineHelper(groundNodePos, deadlines,
                { currentPos.x, currentPos.y },
                currentTime,
                config.ferrySpeed,
                config.hoverTime,
-               &cost2,
-               80, 1000
+               &cost2
             );
             dlval1 = m_buffer.size() - cost1;
             dlval2 = m_buffer.size() - cost2;
@@ -183,16 +181,14 @@ void MultiRouteDeadlineAwareShortcutDtnApp::ScheduleNextWaypoint() {
                currentTime + timeToReach,
                config.ferrySpeed,
                config.hoverTime,
-               &cost1,
-               80, 1000
+               &cost1
             );
             route2 = TSPWeightedDeadlineHelper(groundNodePos, weightedDeadlines,
                { currentPos.x, currentPos.y },
                currentTime,
                config.ferrySpeed,
                config.hoverTime,
-               &cost2,
-               80, 1000
+               &cost2
             );
             dlval1 = -cost1;
             dlval2 = -cost2;
