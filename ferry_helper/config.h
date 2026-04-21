@@ -151,7 +151,7 @@ struct Config {
     bool CHUB_routeExtend = false;
     bool CHUB_reWait = false;
     bool CHUB_squareREReward = false;
-
+    uint32_t CHUB_gaVersion = 1;
 
 
 } config;
@@ -230,6 +230,7 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("CHUB_routeExtend", "Use route extension", config.CHUB_routeExtend);
     cmd.AddValue("CHUB_reWait", "Use re-wait", config.CHUB_reWait);
     cmd.AddValue("CHUB_squareREReward", "Use squared route extend reward", config.CHUB_squareREReward);
+    cmd.AddValue("CHUB_gaVersion", "GA version", config.CHUB_gaVersion);
     cmd.Parse(argc, argv);
     return;
 }

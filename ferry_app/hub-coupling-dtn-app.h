@@ -64,7 +64,7 @@ namespace HUB {
                 for (auto i : m_hubs[h]) {
                     FerryRoute& route = m_routes[i];
                     route.push_back({ hPos, h, true });
-                    route = TwoOpt(route);
+                    route = TSPOptHelper(route);
                 }
             }
         }
@@ -116,7 +116,7 @@ namespace HUB {
             for (uint32_t i = 0; i < m_hubs[h].size(); i++) {
                 FerryRoute& route = m_routes[m_hubs[h][i]];
                 route.push_back({ m_hubPos[h], h, true });
-                route = TwoOpt(route);
+                route = TSPOptHelper(route);
             }
         }
 

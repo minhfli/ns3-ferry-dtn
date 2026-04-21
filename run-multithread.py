@@ -24,7 +24,7 @@ BATCH_ID = "conf4544" #! TEMPORARY
 base_params = {
     "batch": BATCH,
     "vi": False,
-    "skip": True, # skip if already run
+    "skip": False, # skip if already run
     "seed": 0,  # sẽ được override
     "name": "ALGORITHM",
     "run": "RUN",
@@ -45,18 +45,18 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "VHUB", "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "VHUB", "CHUB"],
     # "name": [ "MRDLAS", "PIGEON"],
-    # "name": ["CHUB"],
+    "name": ["CHUB"],
 
     "nGrounds": [50],
-    "nFerrys": [15], 
+    # "nFerrys": [15], 
     # "nFerrys": [ 10, 15, 20],
-    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    "nFerrys": [ 5, 7, 10, 12, 15, 20],
 
     "groundBufferSize": [10000],
-    "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
-    # "ferryBufferSize": [1000],
+    # "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
+    "ferryBufferSize": [1000],
 
     "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
     # "bundleTTL": [450000000], 

@@ -26,16 +26,25 @@ namespace CHUB {
 
 
     ClusterSolution GetCluster() {
+        Clustering::BMTC_routeLengthCap1 = (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.0;
+        Clustering::BMTC_routeLengthCap2 = (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 3.0;
         if (config.CHUB_virtualHub) {
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
-                groundNodePos, config.nFerrys,
-                (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.5,
-                 500, 10000);
+            if (config.CHUB_gaVersion == 1)
+                m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
+                    groundNodePos, config.nFerrys,
+                     1000, 25000);
+            else if (config.CHUB_gaVersion == 2)
+                m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
+                    groundNodePos, config.nFerrys,
+                    700, 20000);
+            else {
+                NS_LOG_UNCOND("ERROR: Invalid GA version for CHUB" << config.CHUB_gaVersion);
+                exit(1);
+            }
         }
         else { // use 1 uav as real hub
             m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
                 groundNodePos, config.nFerrys - 1,
-                (double)config.bundleTTL / 1000000.0 * config.ferrySpeed / 2.5,
                 200, 7000);
             m_clusters.push_back({ });
         }
@@ -76,7 +85,7 @@ namespace CHUB {
                 }
             }
             // Tối ưu lại cho chắc
-            m_routes[i] = TwoOpt(m_routes[i]);
+            m_routes[i] = TSPOptHelper(m_routes[i]);
 
             // Xoay để điểm hub có index là 0
             for (uint32_t j = 0; j < m_routes[i].size(); j++) {

@@ -11,6 +11,7 @@
 
 #include "datatypes.h"
 #include "global.h"
+#include "data-structure-helper.h"
 
 
 struct TSPSolution {
@@ -218,35 +219,243 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
 
 
 std::vector<uint32_t> TSPTwoOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
-    if (baseOrder.size() <= 1) {
+    if (baseOrder.size() <= 3) {
         return baseOrder;
     }
 
     std::vector<uint32_t> order = baseOrder;
-    double bestCost = ComputeTSPCost(order, points);
+    uint32_t n = order.size();
+    // double bestCost = ComputeTSPCost(order, points);
     bool improve = true;
     while (improve) {
         improve = false;
-        for (size_t i = 0; i < order.size() - 1; ++i) {
-            for (size_t j = i + 1; j < order.size(); ++j) {
-                std::reverse(order.begin() + i, order.begin() + j + 1);
-                double newCost = ComputeTSPCost(order, points);
-                if (newCost < bestCost) {
-                    bestCost = newCost;
+        for (size_t i = 0; i < n - 1; ++i) {
+            for (size_t j = i + 1; j < n; ++j) {
+                if (j - i == n - 1) continue;
+                uint32_t prev_i = (i == 0) ? n - 1 : i - 1;
+                uint32_t next_j = (j == n - 1) ? 0 : j + 1;
+                const auto& node_A = points[order[prev_i]];
+                const auto& node_B = points[order[i]];
+                const auto& node_C = points[order[j]];
+                const auto& node_D = points[order[next_j]];
+
+                double old_edges_cost = dist(node_A, node_B) + dist(node_C, node_D);
+                double new_edges_cost = dist(node_A, node_C) + dist(node_B, node_D);
+
+                double deltaCost = new_edges_cost - old_edges_cost;
+                // double newCost = ComputeTSPCost(order, points);
+                if (deltaCost < -0.00001) {
+                    // bestCost += deltaCost;
                     improve = true;
-                }
-                else {
                     std::reverse(order.begin() + i, order.begin() + j + 1);
                 }
+
             }
         }
     }
     return order;
 }
 
+std::vector<uint32_t> TSPOrOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    if (baseOrder.size() <= 3) {
+        return baseOrder;
+    }
+
+    std::vector<uint32_t> order = baseOrder;
+    bool improve = true;
+
+    // Xét các đoạn có độ dài 3, 2, 1
+    std::vector<size_t> segment_lengths = { 3, 2, 1 };
+
+    while (improve) {
+        improve = false;
+        size_t n = order.size();
+        for (size_t len : segment_lengths) {
+            if (len >= n) continue;
+            for (size_t i = 0; i <= n - len; ++i) {
+                for (size_t j = 0; j <= n; ++j) {
+                    // Bỏ qua nếu vị trí chèn nằm ngay bên trong hoặc ngay cạnh đoạn đang xét
+                    if (j >= i && j <= i + len) continue;
+
+                    // các index liên quan 
+                    size_t prev_i = (i == 0) ? n - 1 : i - 1;
+                    size_t next_seg = (i + len == n) ? 0 : i + len;
+
+                    // Vị trí chèn j tương đương việc cắt cạnh giữa A và B để nhét đoạn [i, i+len-1] vào
+                    size_t A = (j == 0) ? n - 1 : j - 1;
+                    size_t B = (j == n) ? 0 : j;
+
+                    // Bỏ qua các phép di chuyển bọc vòng (wrap-around) chỉ làm dịch chuyển mảng 
+                    // mà không thay đổi cấu trúc thật của chu trình
+                    if (A == prev_i || A == i + len - 1) continue;
+
+                    const auto& node_prev_i = points[order[prev_i]];
+                    const auto& node_start = points[order[i]];
+                    const auto& node_end = points[order[i + len - 1]];
+                    const auto& node_next = points[order[next_seg]];
+                    const auto& node_A = points[order[A]];
+                    const auto& node_B = points[order[B]];
+
+                    // Tổng khoảng cách 3 cạnh cũ sắp bị đứt
+                    double old_cost = dist(node_prev_i, node_start)
+                        + dist(node_end, node_next)
+                        + dist(node_A, node_B);
+
+                    double new_cost = dist(node_prev_i, node_next)
+                        + dist(node_A, node_start)
+                        + dist(node_end, node_B);
+
+                    double delta = new_cost - old_cost;
+
+                    // Nếu quãng đường giảm (dùng -1e-7 để tránh sai số dấu phẩy động)
+                    if (delta < -1e-7) {
+                        // Thực hiện hoán đổi trên mảng
+                        std::vector<uint32_t> segment(order.begin() + i, order.begin() + i + len);
+                        order.erase(order.begin() + i, order.begin() + i + len);
+
+                        size_t insert_pos = (j > i) ? j - len : j;
+                        order.insert(order.begin() + insert_pos, segment.begin(), segment.end());
+
+                        improve = true;
+                        break;
+                    }
+                }
+                if (improve) break;
+            }
+            if (improve) break;
+        }
+    }
+    return order;
+}
+
+std::vector<uint32_t> Build3Opt(const std::vector<uint32_t>& order, size_t i, size_t j, size_t k, int case_num) {
+    std::vector<uint32_t> newOrder;
+    newOrder.reserve(order.size());
+
+    // A: [0, i-1]
+    newOrder.insert(newOrder.end(), order.begin(), order.begin() + i);
+
+    std::vector<uint32_t> B(order.begin() + i, order.begin() + j);
+    std::vector<uint32_t> C(order.begin() + j, order.begin() + k);
+
+    // Xử lý lật ngược (reverse) tùy theo case_num
+    if (case_num == 2 || case_num == 4) std::reverse(C.begin(), C.end());
+    if (case_num == 3 || case_num == 4) std::reverse(B.begin(), B.end());
+
+    // Thêm C rồi thêm B
+    newOrder.insert(newOrder.end(), C.begin(), C.end());
+    newOrder.insert(newOrder.end(), B.begin(), B.end());
+
+    // Đoạn D: [k, end]
+    newOrder.insert(newOrder.end(), order.begin() + k, order.end());
+
+    return newOrder;
+}
+#include <vector>
+#include <algorithm>
+
+std::vector<uint32_t> TSPThreeOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    if (baseOrder.size() <= 4) {
+        return baseOrder;
+    }
+
+    std::vector<uint32_t> order = baseOrder;
+    bool improve = true;
+
+    while (improve) {
+        improve = false;
+        size_t n = order.size();
+
+        for (size_t i = 1; i < n - 2; ++i) {
+            for (size_t j = i + 1; j < n - 1; ++j) {
+                for (size_t k = j + 1; k < n; ++k) {
+
+                    // Xác định 6 điểm tạo nên 3 cạnh bị đứt
+                    const auto& A_out = points[order[i - 1]];
+                    const auto& B_in = points[order[i]];
+                    const auto& B_out = points[order[j - 1]];
+                    const auto& C_in = points[order[j]];
+                    const auto& C_out = points[order[k - 1]];
+                    const auto& D_in = points[order[k]];
+
+                    // Tính tổng 3 cạnh cũ sắp bị đứt
+                    double old_cost = dist(A_out, B_in) + dist(B_out, C_in) + dist(C_out, D_in);
+
+                    double best_delta = 0.0;
+                    int best_case = 0;
+
+                    // Trường hợp 1: A - C - B - D (Đảo khối B và C)
+                    double new_cost_1 = dist(A_out, C_in) + dist(C_out, B_in) + dist(B_out, D_in);
+                    double delta_1 = new_cost_1 - old_cost;
+                    if (delta_1 < best_delta) { best_delta = delta_1; best_case = 1; }
+
+                    // Trường hợp 2: A - C' - B - D (Khối C đảo ngược)
+                    double new_cost_2 = dist(A_out, C_out) + dist(C_in, B_in) + dist(B_out, D_in);
+                    double delta_2 = new_cost_2 - old_cost;
+                    if (delta_2 < best_delta) { best_delta = delta_2; best_case = 2; }
+
+                    // Trường hợp 3: A - C - B' - D (Khối B đảo ngược)
+                    double new_cost_3 = dist(A_out, C_in) + dist(C_out, B_out) + dist(B_in, D_in);
+                    double delta_3 = new_cost_3 - old_cost;
+                    if (delta_3 < best_delta) { best_delta = delta_3; best_case = 3; }
+
+                    // Trường hợp 4: A - C' - B' - D (Cả B và C đều đảo ngược)
+                    double new_cost_4 = dist(A_out, C_out) + dist(C_in, B_out) + dist(B_in, D_in);
+                    double delta_4 = new_cost_4 - old_cost;
+                    if (delta_4 < best_delta) { best_delta = delta_4; best_case = 4; }
+
+                    if (best_delta < -1e-7) {
+                        order = Build3Opt(order, i, j, k, best_case);
+                        improve = true;
+                        break;
+                    }
+                }
+                if (improve) break;
+            }
+            if (improve) break;
+        }
+    }
+    return order;
+}
+
+std::vector<uint32_t> TSPAllOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    std::vector<uint32_t> currentOrder = baseOrder;
+    bool system_improved = true;
+
+    while (system_improved) {
+        system_improved = false;
+
+        //  2-opt
+        std::vector<uint32_t> order_2opt = TSPTwoOptOptimize(points, currentOrder);
+        if (order_2opt != currentOrder) {
+            currentOrder = order_2opt;
+            system_improved = true;
+        }
+
+        //  Or-opt trên kết quả 2-opt
+        std::vector<uint32_t> order_oropt = TSPOrOptOptimize(points, currentOrder);
+        if (order_oropt != currentOrder) {
+            currentOrder = order_oropt;
+            system_improved = true;
+            // Nếu Or-opt thay đổi cấu trúc, quay lại 2-opt 
+            continue;
+        }
+
+        // 3-opt 
+        std::vector<uint32_t> order_3opt = TSPThreeOptOptimize(points, currentOrder);
+        if (order_3opt != currentOrder) {
+            currentOrder = order_3opt;
+            system_improved = true;
+            // 3-opt vừa phá vỡ cấu trúc cũ, quay lại 2-opt để dọn dẹp
+            continue;
+        }
+    }
+
+    return currentOrder;
+}
 std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
     std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx, population_size, max_generation);
-    order = TSPTwoOptOptimize(points, order);
+    order = TSPAllOptOptimize(points, order);
     return order;
 }
 std::vector<uint32_t> TSPHelperNoTwoOpt(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
@@ -292,38 +501,20 @@ FerryRoute TSPTwoOptHelper(FerryRoute route) {
     }
     return route;
 }
-#pragma endregion
 
-#pragma region waypoint Route Helper
-FerryRoute TwoOpt(FerryRoute route) {
+
+FerryRoute TSPOptHelper(FerryRoute route) {
     uint32_t n = route.size();
     if (n <= 3) return route;
-    double currentCost = 0;
+    std::vector<point2D> points(n);
     for (uint32_t i = 0; i < n; i++) {
-        point2D A = route[i].pos;
-        point2D B = route[(i + 1) % n].pos;
-        currentCost += dist(A, B);
+        points[i] = route[i].pos;
     }
-    bool improved = true;
-    while (improved) {
-        improved = false;
-        for (uint32_t i = 0; i < n - 2; i++) {
-            for (uint32_t j = i + 2; j < n; j++) {
-                // std::reverse(route.begin() + i + 1, route.begin() + j + 1);
-                double newCost = currentCost;
-                point2D A = route[i].pos;
-                point2D B = route[(i + 1) % n].pos;
-                point2D C = route[j].pos;
-                point2D D = route[(j + 1) % n].pos;
-                newCost += dist(A, C) + dist(B, D);
-                newCost -= dist(A, B) + dist(C, D);
-                if (newCost < currentCost - 0.01) {
-                    std::reverse(route.begin() + i + 1, route.begin() + j + 1);
-                    currentCost = newCost;
-                    improved = true;
-                }
-            }
-        }
+    std::vector<uint32_t> order = DataStructureHelper::GetIndexVector(n);
+    order = TSPAllOptOptimize(points, order);
+
+    for (uint32_t i = 0; i < n; i++) {
+        route[i].pos = points[order[i]];
     }
     return route;
 }

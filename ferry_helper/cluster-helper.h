@@ -296,11 +296,15 @@ namespace Clustering { // TODO Implement more
     }
 
     // BMTC: Balanced mTSP with center
-    struct BMTC_GA_Chromosome {
+    uint32_t BMTC_maxAge = 0;
+    uint32_t BMTC_currentGen = 0;
+
+    struct BMTC_Cluster_Chromosome {
         std::vector<uint32_t> mask;
         uint32_t clusterCount = 1;
+        uint32_t generation = 0;
         double cost;
-        bool operator<(const BMTC_GA_Chromosome& other) const {
+        bool operator<(const BMTC_Cluster_Chromosome& other) const {
             return cost < other.cost;
         }
         ClusterSolution GetCluster() const {
@@ -311,7 +315,17 @@ namespace Clustering { // TODO Implement more
             return clusters;
         }
 
-        static std::pair<BMTC_GA_Chromosome, BMTC_GA_Chromosome> Crossover(BMTC_GA_Chromosome p1, BMTC_GA_Chromosome p2) {
+        static BMTC_Cluster_Chromosome RandomSample(uint32_t n, uint32_t k, uint32_t generation = 0) {
+            BMTC_Cluster_Chromosome chromosome;
+            chromosome.clusterCount = k;
+            chromosome.mask = std::vector<uint32_t>(n, 0);
+            for (uint32_t i = 0; i < n; i++) {
+                chromosome.mask[i] = rand() % k;
+            }
+            return chromosome;
+        }
+
+        static std::pair<BMTC_Cluster_Chromosome, BMTC_Cluster_Chromosome> Crossover(BMTC_Cluster_Chromosome p1, BMTC_Cluster_Chromosome p2) {
             uint32_t n = p1.mask.size();
 
             for (uint32_t i = 0; i < n; i++) {
@@ -321,7 +335,7 @@ namespace Clustering { // TODO Implement more
             }
             return { p1, p2 };
         }
-        static BMTC_GA_Chromosome Mutate(BMTC_GA_Chromosome p, double mutateProb = 0.2, uint32_t baseProb = 1, uint32_t bonusProb = 5) {
+        static BMTC_Cluster_Chromosome Mutate(BMTC_Cluster_Chromosome p, double mutateProb = 0.2, uint32_t baseProb = 1, uint32_t bonusProb = 5) {
             std::vector<uint32_t> maskProb = std::vector<uint32_t>(p.clusterCount, bonusProb);
             for (uint32_t i = 0; i < p.mask.size(); i++) {
                 maskProb[p.mask[i]] = baseProb; // Nếu cluster chưa được gán bất kì nút nào -> tăng tỉ lệ
@@ -345,11 +359,14 @@ namespace Clustering { // TODO Implement more
         }
     };
 
+
+
     struct BMTC_TwoPart_Chromosome {
         std::vector<uint32_t> permutation; // Thứ tự
         std::vector<uint32_t> routeLengths; // Số điểm cho mỗi uav
         uint32_t clusterCount = 1;
         double cost;
+        uint32_t generation; // generation chromosome này được sinh ra
 
         bool operator<(const BMTC_TwoPart_Chromosome& other) const {
             return cost < other.cost;
@@ -451,7 +468,7 @@ namespace Clustering { // TODO Implement more
         }
 
         static BMTC_TwoPart_Chromosome Mutate(BMTC_TwoPart_Chromosome p, double mutateProb = 0.2) {
-            // Đột biến Phần 1: Swap 2 điểm đến ngẫu nhiên
+            // Đột biến 1: Swap 2 điểm đến ngẫu nhiên
             if ((rand() % 100) < mutateProb * 100) {
                 uint32_t n = p.permutation.size();
                 uint32_t idx1 = rand() % n;
@@ -459,16 +476,60 @@ namespace Clustering { // TODO Implement more
                 std::swap(p.permutation[idx1], p.permutation[idx2]);
             }
 
-            // Đột biến Phần 2: Chuyển 1 điểm từ uav này sang uav khác
+            // Đột biến 2: Chuyển 1 điểm từ uav này sang uav khác
             if ((rand() % 100) < mutateProb * 100) {
                 if (p.clusterCount > 1) {
                     uint32_t r1 = rand() % p.clusterCount;
                     uint32_t r2 = rand() % p.clusterCount;
                     // Đảm bảo xe r1 không bị rỗng điểm (để lại ít nhất 1)
                     if (r1 != r2 && p.routeLengths[r1] > 1) {
+                        // chọn điểm để lấy ra
+                        uint32_t idx = rand() % p.routeLengths[r1];
+                        uint32_t removeIndex = 0;
+                        for (uint32_t i = 0; i < r1; i++) {
+                            removeIndex += p.routeLengths[i];
+                        }
+                        removeIndex += idx;
+
+                        // chọn vị trí để thêm vào
+                        idx = rand() % (p.routeLengths[r2] + 1);
+                        uint32_t insertIndex = 0;
+                        for (uint32_t i = 0; i < r2; i++) {
+                            insertIndex += p.routeLengths[i];
+                        }
+                        insertIndex += idx;
+
+                        // insert
+                        p.permutation.insert(p.permutation.begin() + insertIndex, p.permutation[removeIndex]);
+                        if (insertIndex < removeIndex) {
+                            removeIndex++;
+                        }
+                        // xóa ở vị trí cũ
+                        p.permutation.erase(p.permutation.begin() + removeIndex);
+
                         p.routeLengths[r1]--;
                         p.routeLengths[r2]++;
                     }
+                }
+            }
+
+            // Đột biến 3: đảo ngược 1 đoạn của 1 lộ trình
+            if ((rand() % 100) < mutateProb * 100) {
+                uint32_t start = 0;
+                uint32_t R = rand() % p.clusterCount;
+                for (uint32_t i = 0; i <= R; i++) {
+                    // start + p.routeLengths[i];
+                    if (i == R) {
+                        uint32_t p1 = rand() % p.routeLengths[i];
+                        uint32_t p2 = rand() % p.routeLengths[i];
+                        if (p1 > p2) std::swap(p1, p2);
+                        p1 += start;
+                        p2 += start;
+                        if (p2 > p1 && p.routeLengths[i] > 1) {
+                            std::reverse(p.permutation.begin() + p1, p.permutation.begin() + p2 + 1);
+                        }
+                    }
+                    start += p.routeLengths[i];
                 }
             }
             return p;
@@ -476,7 +537,7 @@ namespace Clustering { // TODO Implement more
     };
 
 
-    point2D BMTC_refineHubPosition(const std::vector<point2D>& points, ClusterSolution clusters, const std::vector<double>& cost, point2D basePos, uint32_t ITERATION = 50, double LEARNING_RATE = 0.1) {
+    point2D BMTC_refineHubPosition(const std::vector<point2D>& points, ClusterSolution clusters, const std::vector<double>& cost, point2D basePos, uint32_t ITERATION = 50, double LEARNING_RATE = 0.1, bool v2 = false) {
 
         while (ITERATION--) {
             double maxCostAfterInsert = 0;
@@ -485,10 +546,18 @@ namespace Clustering { // TODO Implement more
             for (uint32_t i = 0; i < clusters.size(); i++) {
                 if (clusters[i].size() == 0) continue;
                 double minInsertCost = std::numeric_limits<double>::max();
-                for (uint32_t j = 0; j < clusters[i].size(); j++) {
-                    point2D a = points[clusters[i][j]];
-                    point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
-                    minInsertCost = std::min(minInsertCost, dist(a, basePos) + dist(b, basePos) - dist(a, b));
+
+                if (v2) {
+                    point2D a = points[clusters[i][0]];
+                    point2D b = points[clusters[i][clusters[i].size() - 1]];
+                    minInsertCost = dist(a, basePos) + dist(b, basePos) - dist(a, b);
+                }
+                else {
+                    for (uint32_t j = 0; j < clusters[i].size(); j++) {
+                        point2D a = points[clusters[i][j]];
+                        point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
+                        minInsertCost = std::min(minInsertCost, dist(a, basePos) + dist(b, basePos) - dist(a, b));
+                    }
                 }
                 if (cost[i] + minInsertCost > maxCostAfterInsert) {
                     maxCostAfterInsert = cost[i] + minInsertCost;
@@ -497,20 +566,26 @@ namespace Clustering { // TODO Implement more
             }
             // Kéo hub về
             point2D target = points[clusters[maxCostIndex][rand() % clusters[maxCostIndex].size()]];
+            if (v2) {
+                int idx = (rand() % 2 - 1 + clusters[maxCostIndex].size()) % clusters[maxCostIndex].size(); // select 0 or n-1 index
+                target = points[clusters[maxCostIndex][idx]];
+            }
             basePos = basePos * (1 - LEARNING_RATE) + target * LEARNING_RATE;
         }
         return basePos;
     }
 
     std::map<std::set<uint32_t>, std::vector<uint32_t>> BMTC_TSP_routeMap;
-    double BMTC_routeLengthCap = 0;
+    double BMTC_routeLengthCap1 = 0;
+    double BMTC_routeLengthCap2 = 0;
+
     std::vector<uint32_t> BMTC_TSP_helper(const std::vector<uint32_t>& indexes, const std::vector<point2D>& points) {
-        std::set<uint32_t> indexSet(indexes.begin(), indexes.end());
-        if (BMTC_TSP_routeMap.find(indexSet) != BMTC_TSP_routeMap.end()) {
-            return BMTC_TSP_routeMap[indexSet];
-        }
-        auto route = TSPTwoOptOptimize(points, indexes);
-        BMTC_TSP_routeMap[indexSet] = route;
+        // std::set<uint32_t> indexSet(indexes.begin(), indexes.end());
+        // if (BMTC_TSP_routeMap.find(indexSet) != BMTC_TSP_routeMap.end()) {
+        //     return BMTC_TSP_routeMap[indexSet];
+        // }
+        auto route = TSPAllOptOptimize(points, indexes);
+        // BMTC_TSP_routeMap[indexSet] = route;
 
         return route;
     }
@@ -533,7 +608,8 @@ namespace Clustering { // TODO Implement more
         double maxCost = 0;
         double minCost = std::numeric_limits<double>::max();
         double totalCost = 0;
-        double exceedCap = 0;
+        double exceedCap1 = 0;
+        double exceedCap2 = 0;
         double penalty = 0;
         for (uint32_t i = 0; i < clusters.size(); i++) {
             if (clusters[i].size() == 0) {
@@ -551,19 +627,25 @@ namespace Clustering { // TODO Implement more
             maxCost = std::max(maxCost, cost[i]);
             minCost = std::min(minCost, cost[i]);
             totalCost += cost[i];
-            if (cost[i] > BMTC_routeLengthCap) {
-                exceedCap += cost[i] - BMTC_routeLengthCap;
+            if (cost[i] > BMTC_routeLengthCap1) {
+                exceedCap1 += cost[i] - BMTC_routeLengthCap1;
+            }
+            if (cost[i] > BMTC_routeLengthCap2) {
+                exceedCap2 += cost[i] - BMTC_routeLengthCap2;
             }
         }
+        totalCost /= (double)clusters.size();
+        exceedCap1 /= (double)clusters.size();
+        exceedCap2 /= (double)clusters.size();
         // minimizing maxCost, totalcost, penalty
         // maximizing mincost
-        return maxCost + 0.1 * (totalCost + exceedCap) / (double)clusters.size() - 0.01 * minCost + penalty;
+        return maxCost + 0.01 * totalCost + 0.005 * (exceedCap1 + exceedCap2) - 0.001 * minCost + penalty;
     }
 
-    double BMTC_ComputeCost(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, bool extraOptimized = false, double emptyClusterPenalty = 2000) {
+    double BMTC_ComputeCost(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, bool extraOptimized = false, double emptyClusterPenalty = 2000, bool makespanDominate = false) {
 
         uint32_t validClusters = 0;
-        point2D cannidateHub = { 0,0 };
+        point2D cannidateHub = getCentroid(points);
         std::vector<double> cost(clusters.size(), 0);
 
         // compute tsp cost
@@ -594,7 +676,8 @@ namespace Clustering { // TODO Implement more
         double maxCost = 0;
         double minCost = std::numeric_limits<double>::max();
         double totalCost = 0;
-        double exceedCap = 0;
+        double exceedCap1 = 0;
+        double exceedCap2 = 0;
         double penalty = 0;
         for (uint32_t i = 0; i < clusters.size(); i++) {
             if (clusters[i].size() == 0) {
@@ -612,13 +695,97 @@ namespace Clustering { // TODO Implement more
             maxCost = std::max(maxCost, cost[i]);
             minCost = std::min(minCost, cost[i]);
             totalCost += cost[i];
-            if (cost[i] > BMTC_routeLengthCap) {
-                exceedCap += cost[i] - BMTC_routeLengthCap;
+            if (cost[i] > BMTC_routeLengthCap1) {
+                exceedCap1 += cost[i] - BMTC_routeLengthCap1;
+            }
+            if (cost[i] > BMTC_routeLengthCap2) {
+                exceedCap2 += cost[i] - BMTC_routeLengthCap2;
             }
         }
+
         // minimizing maxCost, totalcost, penalty
         // maximizing mincost
-        return maxCost + 0.1 * (totalCost + exceedCap) / (double)clusters.size() - 0.01 * minCost + penalty;
+        if (makespanDominate)
+            return maxCost
+            + (0.001 * totalCost) / (double)clusters.size()
+            + (0.001 * exceedCap1 + 0.001 * exceedCap2) / (double)clusters.size();
+
+
+        return maxCost
+            + (0.1 * totalCost) / (double)clusters.size()
+            + (0.1 * exceedCap1 + 0.1 * exceedCap2) / (double)clusters.size()
+            // - 0.001 * minCost 
+            + penalty;
+    }
+
+    double BMTC_ComputeCost_v2(ClusterSolution clusters, const std::vector<point2D>& points, point2D* returnCentroid = nullptr, bool extraOptimized = false, double emptyClusterPenalty = 2000, bool makespanDominate = false) {
+
+        uint32_t validClusters = 0;
+        point2D cannidateHub = getCentroid(points);
+        std::vector<double> cost(clusters.size(), 0);
+
+        // compute tsp cost
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            for (uint32_t j = 0; j < clusters[i].size(); j++) {
+                point2D a = points[clusters[i][j]];
+                point2D b = points[clusters[i][(j + 1) % clusters[i].size()]];
+                cost[i] += dist(a, b);
+            }
+            cost[i] += config.ferrySpeed * config.hoverTime * clusters[i].size();
+        }
+        // refine hub position
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 10, 0.005, true);
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 20, 0.002, true);
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 50, 0.001, true);
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 120, 0.0005, true);
+        if (extraOptimized || returnCentroid != nullptr) {
+            cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 500, 0.0001, true);// extra refinement
+        }
+        if (returnCentroid != nullptr) {
+            cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 1000, 0.0001, true);// extra extra refinement
+            *returnCentroid = cannidateHub;
+        }
+        // tìm max cost
+        double maxCost = 0;
+        double minCost = std::numeric_limits<double>::max();
+        double totalCost = 0;
+        double exceedCap1 = 0;
+        double exceedCap2 = 0;
+        double penalty = 0;
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            if (clusters[i].size() == 0) {
+                minCost = 0;
+                penalty += emptyClusterPenalty;
+                continue;
+            }
+
+            cost[i] += dist(cannidateHub, points[clusters[i][0]]);
+            cost[i] += dist(cannidateHub, points[clusters[i][clusters[i].size() - 1]]);
+            cost[i] -= dist(points[clusters[i][0]], points[clusters[i][clusters[i].size() - 1]]);
+
+            maxCost = std::max(maxCost, cost[i]);
+            minCost = std::min(minCost, cost[i]);
+            totalCost += cost[i];
+            if (cost[i] > BMTC_routeLengthCap1) {
+                exceedCap1 += cost[i] - BMTC_routeLengthCap1;
+            }
+            if (cost[i] > BMTC_routeLengthCap2) {
+                exceedCap2 += cost[i] - BMTC_routeLengthCap2;
+            }
+        }
+
+        // minimizing maxCost, totalcost, penalty
+        // maximizing mincost
+        if (makespanDominate)
+            return maxCost
+            + (0.001 * totalCost) / (double)clusters.size()
+            + (0.001 * exceedCap1 + 0.001 * exceedCap2) / (double)clusters.size();
+
+        return maxCost
+            + (0.05 * totalCost) / (double)clusters.size()
+            + (0.1 * exceedCap1 + 0.1 * exceedCap2) / (double)clusters.size()
+            // - 0.001 * minCost 
+            + penalty;
     }
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {
         // Tìm empty clusters 
@@ -654,7 +821,8 @@ namespace Clustering { // TODO Implement more
     ClusterSolution BMTC_localSearch(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k) {
         bool improved = true;
         ClusterSolution bestClusters = baseClusters;
-        double currentBestCost = BMTC_ComputeCost(bestClusters, points);
+        double currentBestCost = BMTC_ComputeCost(bestClusters, points, nullptr, true, 2000, true);
+
 
         while (improved) {
             improved = false;
@@ -671,7 +839,7 @@ namespace Clustering { // TODO Implement more
                         temp[i].erase(temp[i].begin() + p_idx);
                         temp[j].push_back(pointID);
 
-                        double newCost = BMTC_ComputeCost(temp, points, nullptr, true);
+                        double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, true);
                         if (newCost < currentBestCost - 1e-6) {
                             currentBestCost = newCost;
                             bestClusters = temp;
@@ -694,7 +862,7 @@ namespace Clustering { // TODO Implement more
                             ClusterSolution temp = bestClusters;
                             std::swap(temp[i][p1_idx], temp[j][p2_idx]);
 
-                            double newCost = BMTC_ComputeCost(temp, points, nullptr, true);
+                            double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, true);
                             if (newCost < currentBestCost - 1e-6) {
                                 currentBestCost = newCost;
                                 bestClusters = temp;
@@ -771,93 +939,151 @@ namespace Clustering { // TODO Implement more
         return bestClusters;
     }
 
-    ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+    ClusterSolution BalancedMT_wCenterClustering_GA(const std::vector<point2D>& points, const uint32_t k, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 1000;
-        BMTC_routeLengthCap = expectedRouteLengthCap;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA");
+        BMTC_maxAge = 3000;
+        BMTC_Cluster_Chromosome bestSol;
+        bestSol.cost = std::numeric_limits<double>::max();
         // generate initial population
-        std::vector<BMTC_GA_Chromosome> population(population_size);
+        std::vector<BMTC_Cluster_Chromosome> population(population_size);
         for (uint32_t i = 0; i < population_size; i++) {
-            for (uint32_t j = 0; j < points.size(); j++) {
-                population[i].mask.push_back(rand() % k);
-            }
-            population[i].clusterCount = k;
+            population[i] = BMTC_Cluster_Chromosome::RandomSample(points.size(), k);
             population[i].cost = BMTC_ComputeCost(population[i].GetCluster(), points);
         }
         std::sort(population.begin(), population.end());
 
         for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
-            std::vector<BMTC_GA_Chromosome> new_population;
+            std::vector<BMTC_Cluster_Chromosome> new_population;
             for (uint32_t i = 0; i < population_size / 2; i++) {
-                auto [p1, p2] = BMTC_GA_Chromosome::Crossover(population[i], population[i + 1]);
-                p1 = BMTC_GA_Chromosome::Mutate(p1);
-                p2 = BMTC_GA_Chromosome::Mutate(p2);
+                auto [p1, p2] = BMTC_Cluster_Chromosome::Crossover(
+                    population[rand() % (population_size / 2)],
+                    population[rand() % (population_size)]
+                );
+                p1 = BMTC_Cluster_Chromosome::Mutate(p1);
+                p2 = BMTC_Cluster_Chromosome::Mutate(p2);
                 p1.cost = BMTC_ComputeCost(p1.GetCluster(), points);
                 p2.cost = BMTC_ComputeCost(p2.GetCluster(), points);
+                p1.generation = generation;
+                p2.generation = generation;
                 new_population.push_back(p1);
                 new_population.push_back(p2);
             }
+            for (auto& solution : population) {
+                uint32_t age = generation - solution.generation;
+                if (age > BMTC_maxAge) {
+                    solution = BMTC_Cluster_Chromosome::RandomSample(points.size(), k, generation);
+                    solution.cost = BMTC_ComputeCost(solution.GetCluster(), points);
+                }
+            }
             population.insert(population.end(), new_population.begin(), new_population.end());
+
             std::sort(population.begin(), population.end());
             population.resize(population_size);
+
+            if (bestSol.cost > population[0].cost)
+                bestSol = population[0];
             if (generation % LOG_ITERATION == 0) {
                 NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
             }
         }
 
         point2D hubPos;
-        BMTC_ComputeCost(population[0].GetCluster(), points, &hubPos);
+        BMTC_ComputeCost(bestSol.GetCluster(), points, &hubPos);
 
-        auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
+        auto clusters = BMTC_handleEdgeCase(bestSol.GetCluster(), points, k, hubPos);
         clusters = BMTC_localSearch(points, clusters, k);
         return clusters;
     }
 
-    ClusterSolution BalancedMT_wCenterClustering_GA_v2(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+    ClusterSolution BalancedMT_wCenterClustering_GA_v2(const std::vector<point2D>& points, const uint32_t k, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 1000;
-        BMTC_routeLengthCap = expectedRouteLengthCap;
+        BMTC_maxAge = 2000;
+        uint32_t RESET_ITERATIONS = 5000;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA v2");
+
+        BMTC_TwoPart_Chromosome bestSol;
+        bestSol.cost = std::numeric_limits<double>::max();
         // generate initial population
         std::vector<BMTC_TwoPart_Chromosome> population(population_size);
         for (uint32_t i = 0; i < population_size; i++) {
             population[i] = BMTC_TwoPart_Chromosome::RandomSample(points.size(), k);
-            population[i].cost = BMTC_ComputeCost(population[i].GetCluster(), points);
+            population[i].cost = BMTC_ComputeCost_v2(population[i].GetCluster(), points);
+            population[i].generation = 0;
         }
 
         std::sort(population.begin(), population.end());
 
+        bool makespanDominate = false;
         for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
+            if (generation == max_generation / 2) { // recalculate all cost, reset
+                makespanDominate = true;
+                for (uint32_t i = 0; i < population_size; i++) {
+                    population[i].cost = BMTC_ComputeCost_v2(population[i].GetCluster(), points, nullptr, false, 0, makespanDominate);
+                    population[i].generation = generation;
+                }
+            }
+            BMTC_currentGen = generation;
             std::vector<BMTC_TwoPart_Chromosome> new_population;
             for (uint32_t i = 0; i < population_size / 2; i++) {
-                auto [p1, p2] = BMTC_TwoPart_Chromosome::Crossover(population[i], population[i + 1]);
+                auto [p1, p2] = BMTC_TwoPart_Chromosome::Crossover(
+                    population[i],
+                    population[rand() % (population_size)]
+                );
                 p1 = BMTC_TwoPart_Chromosome::Mutate(p1);
                 p2 = BMTC_TwoPart_Chromosome::Mutate(p2);
-                p1.cost = BMTC_ComputeCost(p1.GetCluster(), points);
-                p2.cost = BMTC_ComputeCost(p2.GetCluster(), points);
+                p1.cost = BMTC_ComputeCost_v2(p1.GetCluster(), points, nullptr, false, 0, makespanDominate);
+                p2.cost = BMTC_ComputeCost_v2(p2.GetCluster(), points, nullptr, false, 0, makespanDominate);
+                p1.generation = generation;
+                p2.generation = generation;
                 new_population.push_back(p1);
                 new_population.push_back(p2);
             }
+
+            for (auto& solution : population) {
+                uint32_t age = generation - solution.generation;
+                if (age > BMTC_maxAge) {
+                    solution = BMTC_TwoPart_Chromosome::RandomSample(points.size(), k);
+                    solution.cost = BMTC_ComputeCost_v2(solution.GetCluster(), points, nullptr, false, 0, makespanDominate);
+                    solution.generation = generation;
+                }
+            }
+
             population.insert(population.end(), new_population.begin(), new_population.end());
+
             std::sort(population.begin(), population.end());
             population.resize(population_size);
+
+            if (generation % RESET_ITERATIONS == 0 && generation > 0 && generation != max_generation / 2) { // advoid reset when switch cost
+                for (uint32_t i = population_size / 4 + 1; i < population_size; i++) {
+                    population[i] = BMTC_TwoPart_Chromosome::RandomSample(points.size(), k);
+                    population[i].cost = BMTC_ComputeCost_v2(population[i].GetCluster(), points, nullptr, false, 0, makespanDominate);
+                    population[i].generation = generation;
+                }
+            }
+
+
+            if (bestSol.cost > population[0].cost) {
+                bestSol = population[0];
+            }
             if (generation % LOG_ITERATION == 0) {
                 NS_LOG_UNCOND("generation " + std::to_string(generation) + "   - best cost : " + std::to_string(population[0].cost));
             }
         }
 
         point2D hubPos;
-        BMTC_ComputeCost(population[0].GetCluster(), points, &hubPos);
+        BMTC_ComputeCost(bestSol.GetCluster(), points, &hubPos);
 
         auto clusters = BMTC_handleEdgeCase(population[0].GetCluster(), points, k, hubPos);
-        clusters = BMTC_localSearch(points, clusters, k);
+        // clusters = BMTC_localSearch(points, clusters, k);
         return clusters;
     }
-    ClusterSolution BalancedMT_fixedHub_GA(const std::vector<point2D>& points, const uint32_t k, const double expectedRouteLengthCap, point2D hubPos, uint32_t population_size = 200, uint32_t max_generation = 5000) {
+
+    ClusterSolution BalancedMT_fixedHub_GA(const std::vector<point2D>& points, const uint32_t k, point2D hubPos, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 200;
-        BMTC_routeLengthCap = expectedRouteLengthCap;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA");
         // generate initial population
-        std::vector<BMTC_GA_Chromosome> population(population_size);
+        std::vector<BMTC_Cluster_Chromosome> population(population_size);
         for (uint32_t i = 0; i < population_size; i++) {
             for (uint32_t j = 0; j < points.size(); j++) {
                 population[i].mask.push_back(rand() % k);
@@ -868,11 +1094,11 @@ namespace Clustering { // TODO Implement more
         std::sort(population.begin(), population.end());
 
         for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
-            std::vector<BMTC_GA_Chromosome> new_population;
+            std::vector<BMTC_Cluster_Chromosome> new_population;
             for (uint32_t i = 0; i < population_size / 2; i++) {
-                auto [p1, p2] = BMTC_GA_Chromosome::Crossover(population[i], population[i + 1]);
-                p1 = BMTC_GA_Chromosome::Mutate(p1);
-                p2 = BMTC_GA_Chromosome::Mutate(p2);
+                auto [p1, p2] = BMTC_Cluster_Chromosome::Crossover(population[i], population[i + 1]);
+                p1 = BMTC_Cluster_Chromosome::Mutate(p1);
+                p2 = BMTC_Cluster_Chromosome::Mutate(p2);
                 p1.cost = BMTC_ComputeCost_wFixedHub(p1.GetCluster(), points, hubPos);
                 p2.cost = BMTC_ComputeCost_wFixedHub(p2.GetCluster(), points, hubPos);
                 new_population.push_back(p1);

@@ -135,8 +135,8 @@ namespace DRC {
         }
         new_route1.insert(new_route1.begin() + best.idx1 + 1, { best.pos, rIndex2, true });
         new_route2.insert(new_route2.begin() + best.idx2 + 1, { best.pos, rIndex1, true });
-        new_route1 = TwoOpt(new_route1);
-        new_route2 = TwoOpt(new_route2);
+        new_route1 = TSPOptHelper(new_route1);
+        new_route2 = TSPOptHelper(new_route2);
 
         return { new_route1, new_route2 };
     }
