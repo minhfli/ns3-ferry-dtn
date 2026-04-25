@@ -9,12 +9,12 @@ params = {
     "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "test3", # run name for log file
+    "run": "test5", # run name for log file
     "simTime": 1,
     "warmupTime": 1,
     "hoverTime": 5,
-    "nGrounds": 45,
-    "nFerrys": 10,
+    "nGrounds": 50,
+    "nFerrys": 12,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
     "SnW_replications": 2,
@@ -23,7 +23,7 @@ params = {
     # "TABAF_weightedDeadline": True,
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
-    "CHUB_routeExtend": False,
+    "CHUB_routeExtend": True,
     "CHUB_gaVersion" :  2,
     # "CHUB_reWait": True,
     #* default config

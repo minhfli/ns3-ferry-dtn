@@ -151,7 +151,7 @@ struct Config {
     bool CHUB_routeExtend = false;
     bool CHUB_reWait = false;
     bool CHUB_squareREReward = false;
-    uint32_t CHUB_gaVersion = 1;
+    uint32_t CHUB_gaVersion = 2;
 
 
 } config;

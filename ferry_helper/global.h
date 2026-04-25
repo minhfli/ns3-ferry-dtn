@@ -5,6 +5,7 @@
 #include "ns3/network-module.h"
 #include "datatypes.h"
 #include <vector>
+#include <random>
 #include <unordered_map>
 
 using namespace ns3;
@@ -18,6 +19,9 @@ constexpr uint8_t MODE_PIGEON = 2;
 // ===========================================================================
 // Global variables
 // ===========================================================================
+
+// global RNG
+std::mt19937 globalRNG(1337); //! MAGIC NUMBER - Fixed seed
 
 Ptr<UniformRandomVariable> m_rand;
 // seperate rng for bundle generation, so the bundle generation will be the same across simulations

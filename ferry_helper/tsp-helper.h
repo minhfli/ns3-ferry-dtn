@@ -503,7 +503,8 @@ FerryRoute TSPTwoOptHelper(FerryRoute route) {
 }
 
 
-FerryRoute TSPOptHelper(FerryRoute route) {
+FerryRoute TSPOptHelper(const FerryRoute& route) {
+    FerryRoute newRoute;
     uint32_t n = route.size();
     if (n <= 3) return route;
     std::vector<point2D> points(n);
@@ -514,9 +515,9 @@ FerryRoute TSPOptHelper(FerryRoute route) {
     order = TSPAllOptOptimize(points, order);
 
     for (uint32_t i = 0; i < n; i++) {
-        route[i].pos = points[order[i]];
+        newRoute.push_back(route[order[i]]);
     }
-    return route;
+    return newRoute;
 }
 #pragma endregion
 

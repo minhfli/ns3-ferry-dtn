@@ -14,6 +14,7 @@
 
 #pragma region Setup
 namespace CHUB {
+    void LogAdditionalInfo(std::string filename);
 
     ClusterSolution m_clusters, m_extendedClusters;
     Graph m_connectGraph;
@@ -36,7 +37,7 @@ namespace CHUB {
             else if (config.CHUB_gaVersion == 2)
                 m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
                     groundNodePos, config.nFerrys,
-                    700, 20000);
+                    300, 50000);
             else {
                 NS_LOG_UNCOND("ERROR: Invalid GA version for CHUB" << config.CHUB_gaVersion);
                 exit(1);
@@ -78,7 +79,7 @@ namespace CHUB {
             }
             // Nối lộ trình của UAV vào hub
             for (uint32_t j = 0; j < m_clusters[i].size(); j++) {
-                m_routes[i].push_back({ groundNodePos[m_clusters[i][j]], m_clusters[i][j], false });
+                m_routes[i].push_back({ groundNodePos[m_clusters[i][j]], m_clusters[i][j], false , {m_clusters[i][j]} });
                 if (j == minInsertIndex) {
                     // điểm gặp mật tất cả ferry còn lại
                     m_routes[i].push_back({ m_hubPos, 0, true, DataStructureHelper::GetIndexVector(config.nFerrys) });
@@ -108,15 +109,17 @@ namespace CHUB {
             }
         }
         if (config.CHUB_virtualHub && config.CHUB_routeExtend) {
+            LogAdditionalInfo("/mnt/d/coding/python/dtn-visualizer/CHUB_beforeRE.txt");
             NS_LOG_UNCOND("CHUB: try extending route..");
             m_extendedClusters = Clustering::BMTC_routeExtend_SA(groundNodePos, m_clusters, m_hubPos);
             for (uint32_t i = 0; i < config.nFerrys; i++) {
                 m_routes[i].clear();
-                m_routes[i].push_back({ m_hubPos, 0, true });
+                m_routes[i].push_back({ m_hubPos, 0, true, {} });
                 for (auto g : m_extendedClusters[i]) {
-                    m_routes[i].push_back({ groundNodePos[g], g, false });
+                    m_routes[i].push_back({ groundNodePos[g], g, false, {} });
                 }
             }
+            LogAdditionalInfo("/mnt/d/coding/python/dtn-visualizer/CHUB_afterRE.txt");
         }
         NS_LOG_UNCOND("CHUB: calculating connection distance..");
         if (config.CHUB_virtualHub) {
@@ -177,6 +180,12 @@ namespace CHUB {
         for (auto r : m_routes) {
             for (auto p : r) {
                 file << p.pos.x << " " << p.pos.y << " ";
+            }
+            file << "\n";
+        }
+        for (auto c : m_extendedClusters) {
+            for (auto g : c) {
+                file << g << " ";
             }
             file << "\n";
         }
