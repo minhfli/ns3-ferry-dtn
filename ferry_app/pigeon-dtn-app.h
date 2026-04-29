@@ -84,7 +84,7 @@ void PigeonDtnApp::InitializeMobility(const std::vector<uint32_t>& servingNodesI
             m_servingNodes.push_back(groundNodeIps[index].Get());
         }
         auto order = TSPClassicGA(m_ferryPoints);
-        order = TSPTwoOptOptimize(m_ferryPoints, order);
+        order = TSPAllOptOptimize(m_ferryPoints, order);
         m_ferryOrder = order;
 
 
@@ -279,8 +279,7 @@ void PigeonDtnApp::SchedulePigeonOnBufferFull() { // TODO remove, this function 
         currentTime,
         config.ferrySpeed,
         config.hoverTime,
-        nullptr,
-        50, 500
+        nullptr
     );
 
     m_mode = MODE_PIGEON;

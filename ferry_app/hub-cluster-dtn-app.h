@@ -163,6 +163,7 @@ namespace CHUB {
     }
 
     void LogAdditionalInfo(std::string filename) {
+        if (!config.enableVisualization) return;
         NS_LOG_UNCOND("CHUB: Logging additional info..");
         std::ofstream file;
         file.open(filename);

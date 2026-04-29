@@ -351,8 +351,6 @@ std::vector<uint32_t> Build3Opt(const std::vector<uint32_t>& order, size_t i, si
 
     return newOrder;
 }
-#include <vector>
-#include <algorithm>
 
 std::vector<uint32_t> TSPThreeOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
     if (baseOrder.size() <= 4) {
@@ -418,41 +416,152 @@ std::vector<uint32_t> TSPThreeOptOptimize(const std::vector<point2D>& points, co
     return order;
 }
 
-std::vector<uint32_t> TSPAllOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
-    std::vector<uint32_t> currentOrder = baseOrder;
-    bool system_improved = true;
+std::vector<uint32_t> TSPThreeOptOptimize_v2(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    std::vector<uint32_t> tour = baseOrder;
+    const size_t n = tour.size();
+    const double EPS = 1e-6; // Dùng EPS để tránh sai số dấu phẩy động khi so sánh
 
-    while (system_improved) {
-        system_improved = false;
+    bool improve = true;
+    while (improve) {
+        improve = false;
+        // Cắt tại 3 cạnh: AB CD EF
+        for (size_t i = 0; i < n - 3; ++i) {
+            for (size_t j = i + 1; j < n - 2; ++j) {
+                for (size_t k = j + 1; k < n - 1; ++k) {
 
-        //  2-opt
-        std::vector<uint32_t> order_2opt = TSPTwoOptOptimize(points, currentOrder);
-        if (order_2opt != currentOrder) {
-            currentOrder = order_2opt;
-            system_improved = true;
-        }
+                    point2D A = points[tour[i]], B = points[tour[i + 1]];
+                    point2D C = points[tour[j]], D = points[tour[j + 1]];
+                    point2D E = points[tour[k]], F = points[tour[(k + 1) % n]];
 
-        //  Or-opt trên kết quả 2-opt
-        std::vector<uint32_t> order_oropt = TSPOrOptOptimize(points, currentOrder);
-        if (order_oropt != currentOrder) {
-            currentOrder = order_oropt;
-            system_improved = true;
-            // Nếu Or-opt thay đổi cấu trúc, quay lại 2-opt 
-            continue;
-        }
+                    // Trọng số các cạnh gốc bị đứt
+                    double AB = dist(A, B), CD = dist(C, D), EF = dist(E, F);
+                    double drop3 = AB + CD + EF;
 
-        // 3-opt 
-        std::vector<uint32_t> order_3opt = TSPThreeOptOptimize(points, currentOrder);
-        if (order_3opt != currentOrder) {
-            currentOrder = order_3opt;
-            system_improved = true;
-            // 3-opt vừa phá vỡ cấu trúc cũ, quay lại 2-opt để dọn dẹp
-            continue;
+                    // Mảng lưu Delta Cost cho 7 trường hợp tái tổ hợp
+                    double deltas[8] = { 0 };
+
+                    // --- 3 Trường hợp tương đương 2-opt (Chỉ gỡ 2 cạnh) ---
+                    deltas[1] = dist(A, C) + dist(B, D) - AB - CD; // Reverse đoạn [B..C]
+                    deltas[2] = dist(C, E) + dist(D, F) - CD - EF; // Reverse đoạn [D..E]
+                    deltas[3] = dist(A, E) + dist(B, F) - AB - EF; // Reverse cả mảng [B..E]
+
+                    // --- 4 Trường hợp 3-opt thuần (Gỡ và đổi cả 3 cạnh) ---
+                    deltas[4] = dist(A, D) + dist(E, B) + dist(C, F) - drop3; // Swap đoạn [B..C] và [D..E]
+                    deltas[5] = dist(A, C) + dist(B, E) + dist(D, F) - drop3; // Reverse [B..C], Reverse [D..E]
+                    deltas[6] = dist(A, E) + dist(D, B) + dist(C, F) - drop3; // Reverse [D..E], Swap 2 đoạn
+                    deltas[7] = dist(A, D) + dist(E, C) + dist(B, F) - drop3; // Reverse [B..C], Swap 2 đoạn
+
+                    // Cấu hình làm giảm nhiều nhất
+                    int bestCase = 0;
+                    double bestDelta = 0;
+                    for (int c = 1; c <= 7; ++c) {
+                        if (deltas[c] < bestDelta) {
+                            bestDelta = deltas[c];
+                            bestCase = c;
+                        }
+                    }
+
+                    // Nếu tiết kiệm được quãng đường, tiến hành khâu nối lại
+                    if (bestCase > 0 && bestDelta < -EPS) {
+                        improve = true;
+
+                        // Trích 3 đoạn từ tour hiện tại
+                        // seg1: [i+1 .. j], seg2: [j+1 .. k], seg3 không cần thiết vì tour wrap-around
+                        std::vector<uint32_t> seg1(tour.begin() + i + 1, tour.begin() + j + 1); // B..C
+                        std::vector<uint32_t> seg2(tour.begin() + j + 1, tour.begin() + k + 1); // D..E
+
+                        // Reverse helpers
+                        auto rev1 = std::vector<uint32_t>(seg1.rbegin(), seg1.rend()); // C..B
+                        auto rev2 = std::vector<uint32_t>(seg2.rbegin(), seg2.rend()); // E..D
+
+                        // Xây lại từ vị trí i+1 đến k (phần còn lại tour[k+1..] và tour[0..i] giữ nguyên)
+                        std::vector<uint32_t> newMiddle;
+                        newMiddle.reserve(k - i);
+
+                        switch (bestCase) {
+                            case 1: // A-C-B-D-E-F: Reverse seg1
+                                newMiddle.insert(newMiddle.end(), rev1.begin(), rev1.end()); // C..B
+                                newMiddle.insert(newMiddle.end(), seg2.begin(), seg2.end()); // D..E
+                                break;
+                            case 2: // A-B-C-E-D-F: Reverse seg2
+                                newMiddle.insert(newMiddle.end(), seg1.begin(), seg1.end()); // B..C
+                                newMiddle.insert(newMiddle.end(), rev2.begin(), rev2.end()); // E..D
+                                break;
+                            case 3: // A-E-D-C-B-F: Reverse cả seg1+seg2 (tương đương 2-opt trên toàn đoạn)
+                                newMiddle.insert(newMiddle.end(), rev2.begin(), rev2.end()); // E..D
+                                newMiddle.insert(newMiddle.end(), rev1.begin(), rev1.end()); // C..B
+                                break;
+                            case 4: // A-D-E-B-C-F: Swap seg1 và seg2
+                                newMiddle.insert(newMiddle.end(), seg2.begin(), seg2.end()); // D..E
+                                newMiddle.insert(newMiddle.end(), seg1.begin(), seg1.end()); // B..C
+                                break;
+                            case 5: // A-C-B-E-D-F: Reverse seg1 + Reverse seg2
+                                newMiddle.insert(newMiddle.end(), rev1.begin(), rev1.end()); // C..B
+                                newMiddle.insert(newMiddle.end(), rev2.begin(), rev2.end()); // E..D
+                                break;
+                            case 6: // A-E-D-B-C-F: Reverse seg2 + Swap
+                                newMiddle.insert(newMiddle.end(), rev2.begin(), rev2.end()); // E..D
+                                newMiddle.insert(newMiddle.end(), seg1.begin(), seg1.end()); // B..C
+                                break;
+                            case 7: // A-D-E-C-B-F: Swap + Reverse seg1
+                                newMiddle.insert(newMiddle.end(), seg2.begin(), seg2.end()); // D..E
+                                newMiddle.insert(newMiddle.end(), rev1.begin(), rev1.end()); // C..B
+                                break;
+                        }
+
+                        // Ghi newMiddle trở lại vào tour tại vị trí [i+1 .. k]
+                        std::copy(newMiddle.begin(), newMiddle.end(), tour.begin() + i + 1);
+                    }
+                    if (improve) break;
+                }
+                if (improve) break;
+            }
+            if (improve) break;
         }
     }
-
-    return currentOrder;
+    return tour;
 }
+
+std::vector<uint32_t> TSPAllOptOptimize(const std::vector<point2D>& points, const std::vector<uint32_t>& baseOrder) {
+    if (baseOrder.size() < 4) return TSPTwoOptOptimize(points, baseOrder);
+
+    return TSPThreeOptOptimize_v2(points, TSPTwoOptOptimize(points, baseOrder));
+
+    // std::vector<uint32_t> currentOrder = baseOrder;
+    // bool system_improved = true;
+
+    // while (system_improved) {
+    //     system_improved = false;
+
+    //     //  2-opt
+    //     std::vector<uint32_t> order_2opt = TSPTwoOptOptimize(points, currentOrder);
+    //     if (order_2opt != currentOrder) {
+    //         currentOrder = order_2opt;
+    //         system_improved = true;
+    //     }
+
+    //     //  Or-opt trên kết quả 2-opt
+    //     std::vector<uint32_t> order_oropt = TSPOrOptOptimize(points, currentOrder);
+    //     if (order_oropt != currentOrder) {
+    //         currentOrder = order_oropt;
+    //         system_improved = true;
+    //         // Nếu Or-opt thay đổi cấu trúc, quay lại 2-opt 
+    //         continue;
+    //     }
+
+    //     // 3-opt 
+    //     std::vector<uint32_t> order_3opt = TSPThreeOptOptimize(points, currentOrder);
+    //     if (order_3opt != currentOrder) {
+    //         currentOrder = order_3opt;
+    //         system_improved = true;
+    //         // 3-opt vừa phá vỡ cấu trúc cũ, quay lại 2-opt để dọn dẹp
+    //         continue;
+    //     }
+    // }
+
+    // return currentOrder;
+}
+
 std::vector<uint32_t> TSPHelper(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
     std::vector<uint32_t> order = TSPClassicGA(points, excludeIdx, population_size, max_generation);
     order = TSPAllOptOptimize(points, order);

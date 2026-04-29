@@ -45,17 +45,21 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "CHUB"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "CHUB"],
     # "name": [ "MRDLAS", "PIGEON"],
-    # "name": ["CHUB"],
+    "name": ["CHUB"],
 
+    # "nGrounds": [50],
     "nGrounds": [50],
     # "nFerrys": [15], 
     "nFerrys": [ 10, 15, 20],
     # "nFerrys": [ 5, 7, 10, 12, 15, 20],
+    # "nFerrys": [ 3, 4, 5,6, 7,8,9, 10],
+    # "nFerrys": [ 5, 7, 10],
 
     "groundBufferSize": [10000],
-    "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
+    "ferryBufferSize": [ 50, 75, 100, 125, 150, 200, 250, 300, 1000],
+    # "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
     # "ferryBufferSize": [1000],
 
     # "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
@@ -223,10 +227,10 @@ algo_variants= {
             "warmupTime": 500,
             "CHUB_virtualHub": True,
         },   
-        # "realHub": {
-        #     "warmupTime": 500,
-        #     "CHUB_virtualHub": False,
-        # },
+        "realHub": {
+            "warmupTime": 500,
+            "CHUB_virtualHub": False,
+        },
         "routeExtend": {
             "warmupTime": 500,
             "CHUB_virtualHub": True,

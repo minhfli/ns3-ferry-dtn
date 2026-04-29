@@ -5,7 +5,7 @@ PROGRAM = "ferry"
 PROGRAM2 = "ferryrep"
 
 params = {
-    "seed": 762227828,
+    "seed": 1337,
     "name": "CHUB", # algorithm name
     "vi": True,
     "batch": "default",
@@ -14,7 +14,7 @@ params = {
     "warmupTime": 1,
     "hoverTime": 5,
     "nGrounds": 50,
-    "nFerrys": 12,
+    "nFerrys": 10,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
     "SnW_replications": 2,
