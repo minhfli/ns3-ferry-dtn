@@ -100,7 +100,7 @@ struct Config {
     // std::string
     uint32_t bundleTTL = 300000000; // 300 seconds (microsec) ~ 5 min
     uint32_t bundleAckTimeout = 500000; // 0.5 seconds (microsec)
-    double minExpectedArrivalDifference = 5; // (seconds), min expected arrival difference (Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
+    double minExpectedArrivalDifference = 1; // (seconds), min expected arrival difference (Beacon interval) for 2 node to exchange bundle information and accept bundle transfer
 
     bool enableFerryComm = false;
 
@@ -126,6 +126,7 @@ struct Config {
 
     bool TABAF_weightedDeadline = false;
     bool TABAF_shareVisitTime = true;
+    bool TABAF_originalFowardScheme = false;
 
     bool TABADLA_addBundleValue = false;
     uint32_t TABADLA_topK = 10;
@@ -212,10 +213,12 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);
     cmd.AddValue("SnW_replications", "SnW replications", config.SnW_replications);
+    cmd.AddValue("replicationBaseDtnAppMode", "Replication Dtn App Mode", config.replicationBaseDtnAppMode);
 
     // ----- algorithm specific config -----
     cmd.AddValue("pigeonReturn", "Pigeon return mode", config.PIGEON_return_mode);
     cmd.AddValue("TABAF_shareVisitTime", "TABAF share visit time", config.TABAF_shareVisitTime);
+    cmd.AddValue("TABAF_originalFowardScheme", "TABAF original foward scheme", config.TABAF_originalFowardScheme);
     cmd.AddValue("TABADLA_addBundleValue", "TABADLA, add bundle value", config.TABADLA_addBundleValue);
     cmd.AddValue("waypointSelectMode", "Waypoint selection mode", config.waypointSelectMode);
     cmd.AddValue("SR_PIGEON_V2_addlvt", "SR_PIGEON_V2, add lvt", config.SR_PIGEON_V2_addlvt);

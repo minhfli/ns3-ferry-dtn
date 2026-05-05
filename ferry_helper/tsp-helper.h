@@ -110,7 +110,7 @@ inline void SwapMutation(std::vector<uint32_t>& order,
 /* ================================
    MAIN GA
 ================================ */
-std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::set<uint32_t>& excludeIdx = {}, const uint32_t population_size = 100, const uint32_t max_generation = 5000) {
     NS_LOG_UNCOND("TSP Classic GA");
     uint32_t POP_SIZE = population_size; // population size
     uint32_t MAX_GEN = max_generation; // max number of generation
@@ -167,7 +167,7 @@ std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std
     return std::min_element(population.begin(), population.end())->order;
 }
 
-std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::vector<uint32_t>& included, const uint32_t population_size = 100, const uint32_t max_generation = 2000) {
+std::vector<uint32_t> TSPClassicGA(const std::vector<point2D>& points, const std::vector<uint32_t>& included, const uint32_t population_size = 100, const uint32_t max_generation = 5000) {
     NS_LOG_UNCOND("TSP Classic GA");
     uint32_t POP_SIZE = population_size; // population size
     uint32_t MAX_GEN = max_generation; // max number of generation
@@ -677,7 +677,7 @@ std::vector<uint32_t> TSPDeadlineBasedGA(
     const double speed,
     const double hoverTime,
     const uint32_t population_size = 100,
-    const uint32_t max_generation = 2000,
+    const uint32_t max_generation = 5000,
     uint32_t* best_cost = nullptr
 ) {
     uint32_t POP_SIZE = population_size; // population size
@@ -794,7 +794,7 @@ std::vector<uint32_t> TSPDeadlineHelper(
     const double hoverTime,
     uint32_t* best_cost = nullptr,
     const uint32_t population_size = 100,
-    const uint32_t max_generation = 2000
+    const uint32_t max_generation = 5000
 ) {
     std::vector<uint32_t> order = TSPDeadlineBasedGA(points, deadlines, starting_pos, starting_time, speed, hoverTime, population_size, max_generation);
     order = TSPDeadlineBasedTwoOptOptimize(points, deadlines, starting_pos, starting_time, speed, hoverTime, order, best_cost);
@@ -841,7 +841,7 @@ std::vector<uint32_t> TSPWeightedDeadlineGA(
     const double speed,
     const double hoverTime,
     const uint32_t population_size = 100,
-    const uint32_t max_generation = 2000,
+    const uint32_t max_generation = 5000,
     double* best_cost = nullptr
 ) {
     uint32_t POP_SIZE = population_size; // population size
@@ -958,7 +958,7 @@ std::vector<uint32_t> TSPWeightedDeadlineHelper(
     const double hoverTime,
     double* best_cost = nullptr,
     const uint32_t population_size = 100,
-    const uint32_t max_generation = 2000
+    const uint32_t max_generation = 5000
 ) {
     std::vector<uint32_t> order = TSPWeightedDeadlineGA(points, deadlines, starting_pos, starting_time, speed, hoverTime, population_size, max_generation);
     order = TSPWeightedDeadlineTwoOpt(points, deadlines, starting_pos, starting_time, speed, hoverTime, order, best_cost);

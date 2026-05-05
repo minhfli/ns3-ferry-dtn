@@ -6,17 +6,18 @@ PROGRAM2 = "ferryrep"
 
 params = {
     "seed": 1337,
-    "name": "CHUB", # algorithm name
+    "name": "SNW_FPOD", # algorithm name
     "vi": True,
     "batch": "default",
     "run": "test5", # run name for log file
-    "simTime": 1,
-    "warmupTime": 1,
+    "simTime": 10000,
+    "warmupTime": 500,
     "hoverTime": 5,
     "nGrounds": 50,
     "nFerrys": 10,
     #* some algorithm specific config
     # "waypointSelectMode" :"PROBABILISTIC",
+    "replicationBaseDtnAppMode": "EPIDEMIC",
     "SnW_replications": 2,
     "waypointSelectMode" :"DETERMINISTIC",
     "MRDLAS_weightedDeadline": True,

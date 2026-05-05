@@ -35,6 +35,8 @@
 #include "ferry_app/epidemic-base-dtn-app.h"
 #include "ferry_app/snw-mrdlas-dtn-app.h"
 #include "ferry_app/snw-tabaf-dtn-app.h"
+#include "ferry_app/snw-fpod-dtn-app.h"
+
 
 #include <vector>
 #include <algorithm>
@@ -53,6 +55,9 @@ Ptr<EpidemicBaseDtnApp> createApp() {
     if (config.ALGORITHM_NAME == "SNW_TABAF") {
         return CreateObject<SNW_TABAF_DtnApp>();
     }
+    if (config.ALGORITHM_NAME == "SNW_FPOD") {
+        return CreateObject<SNW_FPOD_DtnApp>();
+    }
 
     return nullptr;
 }
@@ -60,6 +65,7 @@ Ptr<EpidemicBaseDtnApp> createApp() {
 uint32_t GetAlgoGroupCount() {
     if (config.ALGORITHM_NAME == "SNW_MRDLAS")  return 1;
     if (config.ALGORITHM_NAME == "SNW_TABAF")  return 1;
+    if (config.ALGORITHM_NAME == "SNW_FPOD")  return 1;
     return 1;
 }
 
@@ -91,6 +97,8 @@ int main(int argc, char* argv[]) {
     // ==========================================================
     // Loggings //! IMPORTANT 
     // ==========================================================
+    algoConfig.sendRouteInHello = false;
+    algoConfig.sendBundleCountInHello = false;
     // parse cmd line args
     ParseConfig(argc, argv);
 

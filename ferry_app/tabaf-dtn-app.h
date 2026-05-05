@@ -221,6 +221,11 @@ Bundle* TabafDtnApp::FerrySelectBundleToFerry(Ipv4Address neighborIp) {
             double expect2 = (double)neighbor.expectedArrival[neighbor.expectedArrival.size() - 1] / 1000000.0;
             expect2 += dist(neighborTargetPos, bundlePos) / config.ferrySpeed;
 
+            if (config.TABAF_originalFowardScheme) { // original implementation
+                expect1 = dist(myTargetPos, bundlePos);
+                expect2 = dist(neighborTargetPos, bundlePos);
+            }
+
             // sufficient condition 2
             if (expect1 - expect2 > config.minExpectedArrivalDifference) {
                 return &bundle; // send bundle to node that have better chance to reach

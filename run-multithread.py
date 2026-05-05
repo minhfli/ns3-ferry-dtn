@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import argparse
 
 PROGRAM = "ferry"
+PROGRAM2 = "ferryrep"
 BATCH = "20260415_5s"
 BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
@@ -46,31 +47,33 @@ base_params = {
 
 param_grid = { # change or set to default grid for custom run
     # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "CHUB"],
-    # "name": [ "MRDLAS", "PIGEON"],
-    "name": ["CHUB"],
+    # "name": ["TABAF", "TABARA"],
+    "name": ["SNW_FPOD"],
+
+    "nGrounds": [25],
+    # "nFerrys": [ 10],
+    "nFerrys": [ 3, 4, 5, 6, 7, 8, 9, 10],
 
     # "nGrounds": [50],
-    "nGrounds": [50],
-    # "nFerrys": [15], 
-    "nFerrys": [ 10, 15, 20],
-    # "nFerrys": [ 5, 7, 10, 12, 15, 20],
-    # "nFerrys": [ 3, 4, 5,6, 7,8,9, 10],
-    # "nFerrys": [ 5, 7, 10],
+    # "nFerrys": [15],
+    # "nFerrys": [5, 7, 10, 12, 15, 17, 20],
 
     "groundBufferSize": [10000],
-    "ferryBufferSize": [ 50, 75, 100, 125, 150, 200, 250, 300, 1000],
-    # "ferryBufferSize": [ 50, 100, 200, 300, 400, 500, 1000],
-    # "ferryBufferSize": [1000],
+    # "ferryBufferSize": [50, 75, 100, 150, 200, 250, 300, 1000],
+    "ferryBufferSize": [1000],
 
     # "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
     # "bundleTTL": [450000000], 
     "bundleTTL": [600000000, 900000000], 
 
+    # "ferryComm": [False, True],
     "ferryComm": [False, True],
 }
 
-noFC_only = ["TABARA"]
-FC_only = ["SIRA", "PIGEON", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB"] # only run ferry comm = true with these algorithm
+# noFC_only = ["TABARA"]
+noFC_only = []
+FC_only = ["SIRA", "PIGEON", "RPDLAS", "SR_PIGEON", "SR_PIGEON_V2" , "MRDLAS", "DRC", "HUB", "VHUB", "CHUB",
+           "TABAF", "TABARA"] # only run ferry comm = true with these algorithm
 
 algo_variants= {
     "PIGEON": {
@@ -78,15 +81,33 @@ algo_variants= {
             "pigeonReturn": 1,
         },
     },
+    "SNW_FPOD":{
+        "default": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "replicationBaseDtnAppMode": "EPIDEMIC",
+            "warmupTime": 2000,
+        },
+        "noSharing": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "replicationBaseDtnAppMode": "EPIDEMIC",            
+            "TABAF_shareVisitTime": False,
+            # "ferryComm": False,
+            "warmupTime": 2000,
+        },
+    },
     "TABAF": {
         "default": {
             "waypointSelectMode": "DETERMINISTIC",
         },
-        "noSharing": {
+        "original": {
             "waypointSelectMode": "DETERMINISTIC",
-            "TABAF_shareVisitTime": False,
-            "ferryComm": False,
+            "TABAF_originalFowardScheme": True,
         },
+        # "noSharing": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "TABAF_shareVisitTime": False,
+        #     "ferryComm": False,
+        # },
     },
     "SR_PIGEON": {
         "default": {
@@ -125,12 +146,17 @@ algo_variants= {
         },
     },
     "TABARA":{
-        # "default": {
-        # },   
-        "noSharing":{
-            "TABAF_shareVisitTime" : False,
-            "ferryComm": False,
+        "default": {
+            "waypointSelectMode": "DETERMINISTIC",
         },
+        "original": {
+            "waypointSelectMode": "DETERMINISTIC",
+            "TABAF_originalFowardScheme": True,
+        },
+        # "noSharing":{
+        #     "TABAF_shareVisitTime" : False,
+        #     "ferryComm": False,
+        # },
     },
     "RPDLAS": {
         # "default": {
@@ -227,10 +253,10 @@ algo_variants= {
             "warmupTime": 500,
             "CHUB_virtualHub": True,
         },   
-        "realHub": {
-            "warmupTime": 500,
-            "CHUB_virtualHub": False,
-        },
+        # "realHub": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": False,
+        # },
         "routeExtend": {
             "warmupTime": 500,
             "CHUB_virtualHub": True,
@@ -399,8 +425,9 @@ if __name__ == "__main__":
                     f"_C{int(params['ferryComm'])}"
                     f"_seed{seed_id}"
                 )
-
                 cmd = build_cmd(PROGRAM, params)
+                if algo.startswith("SNW"):
+                    cmd = build_cmd(PROGRAM2, params)
                 config_name = f"Config {config_id + 1}/{len(all_configs)} | Seed {seed_id + 1}/{N_SEEDS} | Algo: {algo} | Variant: {variant_name}"
                 tasks.append((cmd, config_name))
 
