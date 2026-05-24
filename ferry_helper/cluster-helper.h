@@ -11,6 +11,7 @@
 #include "data-structure-helper.h"
 #include "tsp-helper.h"
 #include "ga-helper.h"
+#include "report.h"
 
 point2D getCentroid(const std::vector<point2D>& points) {
     double x = 0, y = 0;
@@ -465,7 +466,7 @@ namespace Clustering { // TODO Implement more
                     // thừa -> trừ bớt ngẫu nhiên 
                     while (diff < 0) {
                         uint32_t idx = rand() % k;
-                        if (c_r[idx] > 1) {
+                        if (c_r[idx] > 1 || (c_r[idx] == 1 && config.CHUB_allowSearchEmptyRoute)) {
                             c_r[idx]--;
                             diff++;
                         }
@@ -534,18 +535,21 @@ namespace Clustering { // TODO Implement more
             if ((rand() % 100) < mutateProb * 100) {
                 uint32_t start = 0;
                 uint32_t R = rand() % p.clusterCount;
-                for (uint32_t i = 0; i <= R; i++) {
-                    if (i == R) {
-                        uint32_t p1 = rand() % p.routeLengths[i];
-                        uint32_t p2 = rand() % p.routeLengths[i];
-                        if (p1 > p2) std::swap(p1, p2);
-                        p1 += start;
-                        p2 += start;
-                        if (p2 > p1 && p.routeLengths[i] > 1) {
-                            std::reverse(p.permutation.begin() + p1, p.permutation.begin() + p2 + 1);
+                if (p.routeLengths[R] > 1) {
+                    for (uint32_t i = 0; i <= R; i++) {
+                        if (i == R) {
+                            uint32_t p1 = rand() % p.routeLengths[i];
+                            uint32_t p2 = rand() % p.routeLengths[i];
+                            if (p1 > p2) std::swap(p1, p2);
+                            p1 += start;
+                            p2 += start;
+                            if (p2 > p1 && p.routeLengths[i] > 1) {
+                                std::reverse(p.permutation.begin() + p1, p.permutation.begin() + p2 + 1);
+                            }
+                            break;
                         }
+                        start += p.routeLengths[i];
                     }
-                    start += p.routeLengths[i];
                 }
             }
             return p;
@@ -813,22 +817,28 @@ namespace Clustering { // TODO Implement more
         exceedCap2Count = std::max(exceedCap2Count, 1);
         exceedCap3Count = std::max(exceedCap3Count, 1);
 
-        // minimizing maxCost, totalcost, penalty
-        // maximizing mincost
+        double stdDev = 0;
+        double mean = totalCost / (double)clusters.size();
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            stdDev += (cost[i] - mean) * (cost[i] - mean);
+        }
+        stdDev = std::sqrt(stdDev / (double)clusters.size());
+
         if (makespanDominate)
+            return maxCost;
+
+        if (config.CHUB_costVersion == 2)
             return maxCost
             + 0.001 * totalCost / (double)clusters.size()
-            + 0.005 * exceedCap1 / exceedCap1Count
-            + 0.005 * exceedCap2 / exceedCap2Count
+            + 0.0005 * stdDev
             // + 0.001 * exceedCap3 / exceedCap3Count
             // - 0.001 * minCost
             + penalty;
 
-
         return maxCost
-            + 0.1 * totalCost / (double)clusters.size()
-            + 0.1 * exceedCap1 / exceedCap1Count
-            + 0.1 * exceedCap2 / exceedCap2Count
+            + 0.001 * totalCost / (double)clusters.size()
+            + 0.005 * exceedCap1 / exceedCap1Count
+            + 0.005 * exceedCap2 / exceedCap2Count
             // + 0.001 * exceedCap3 / exceedCap3Count
             // - 0.001 * minCost
             + penalty;
@@ -850,10 +860,10 @@ namespace Clustering { // TODO Implement more
             cost[i] += config.ferrySpeed * config.hoverTime * (clusters[i].size() + 1);
         }
         // refine hub position
-        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 10, 0.005, true);
-        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 20, 0.002, true);
+        // cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 10, 0.005, true);
+        // cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 20, 0.002, true);
         cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 50, 0.001, true);
-        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 120, 0.0005, true);
+        cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 50, 0.0005, true);
         if (extraOptimized || returnCentroid != nullptr) {
             cannidateHub = BMTC_refineHubPosition(points, clusters, cost, cannidateHub, 500, 0.0001, true);// extra refinement
         }
@@ -905,16 +915,22 @@ namespace Clustering { // TODO Implement more
         exceedCap2Count = std::max(exceedCap2Count, 1);
         exceedCap3Count = std::max(exceedCap3Count, 1);
 
-        // minimizing maxCost, totalcost, penalty
-        // maximizing mincost
-        // if (makespanDominate)
-        //     return maxCost
-        //     + 0.005 * totalCost / (double)clusters.size()
-        //     + 0.01 * exceedCap1 / exceedCap1Count
-        //     + 0.01 * exceedCap2 / exceedCap2Count
-        //     // + 0.01 * exceedCap3 / exceedCap3Count
-        //     // - 0.001 * minCost
-        //     + penalty;
+        double stdDev = 0;
+        double mean = totalCost / (double)clusters.size();
+        for (uint32_t i = 0; i < clusters.size(); i++) {
+            stdDev += (cost[i] - mean) * (cost[i] - mean);
+        }
+        stdDev = std::sqrt(stdDev / (double)clusters.size());
+        if (makespanDominate)
+            return maxCost;
+
+        if (config.CHUB_costVersion == 2)
+            return maxCost
+            + 0.1 * totalCost / (double)clusters.size()
+            + 0.01 * stdDev;
+            // + 0.01 * exceedCap3 / exceedCap3Count
+            // - 0.001 * minCost
+            // + penalty;
 
         return maxCost
             + 0.01 * totalCost / (double)clusters.size()
@@ -923,13 +939,7 @@ namespace Clustering { // TODO Implement more
             // + 0.01 * exceedCap3 / exceedCap3Count
             // - 0.001 * minCost
             + penalty;
-        return maxCost
-            + 0.05 * totalCost / (double)clusters.size()
-            + 0.1 * exceedCap1 / exceedCap1Count
-            + 0.1 * exceedCap2 / exceedCap2Count
-            // + 0.001 * exceedCap3 / exceedCap3Count
-            // - 0.001 * minCost
-            + penalty;
+
     }
     ClusterSolution BMTC_handleEdgeCase(ClusterSolution clusters, const std::vector<point2D>& points, uint32_t k, point2D hubPos) {
         // Tìm empty clusters 
@@ -965,7 +975,7 @@ namespace Clustering { // TODO Implement more
     ClusterSolution BMTC_localSearch(const std::vector<point2D>& points, ClusterSolution baseClusters, uint32_t k) {
         bool improved = true;
         ClusterSolution bestClusters = baseClusters;
-        double bestCost = BMTC_ComputeCost(bestClusters, points, nullptr, true, 2000, true);
+        double bestCost = BMTC_ComputeCost(bestClusters, points, nullptr, true, 2000, false);
 
         while (improved) {
             improved = false;
@@ -983,7 +993,7 @@ namespace Clustering { // TODO Implement more
                         temp[i].erase(temp[i].begin() + p_idx);
                         temp[j].push_back(pointID);
 
-                        double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, true);
+                        double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, false);
                         if (newCost < localBestCost - 1e-6) {
                             localBestCost = newCost;
                             localBestClusters = temp;
@@ -1002,7 +1012,7 @@ namespace Clustering { // TODO Implement more
                             ClusterSolution temp = bestClusters;
                             std::swap(temp[i][p1_idx], temp[j][p2_idx]);
 
-                            double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, true);
+                            double newCost = BMTC_ComputeCost(temp, points, nullptr, true, 2000, false);
                             if (newCost < localBestCost - 1e-6) {
                                 localBestCost = newCost;
                                 localBestClusters = temp;
@@ -1142,7 +1152,7 @@ namespace Clustering { // TODO Implement more
     ClusterSolution BalancedMT_wCenterClustering_GA_v2(const std::vector<point2D>& points, const uint32_t k, uint32_t population_size = 200, uint32_t max_generation = 5000) {
         uint32_t LOG_ITERATION = 1000;
         BMTC_maxAge = 2000;
-        uint32_t RESET_ITERATIONS = max_generation / 4;
+        uint32_t RESET_ITERATIONS = 20000;
         // uint32_t RESET_ITERATIONS = 1000000;
         NS_LOG_UNCOND("Balanced mTSP with Center Clustering - GA v2");
 
@@ -1160,13 +1170,6 @@ namespace Clustering { // TODO Implement more
 
         bool makespanDominate = false;
         for (uint32_t generation = 0; generation < max_generation + 1; generation++) {
-            // if (generation == max_generation / 2) { // recalculate all cost, reset
-            //     makespanDominate = true;
-            //     for (uint32_t i = 0; i < population_size; i++) {
-            //         population[i].cost = BMTC_ComputeCost_v2(population[i].GetCluster(), points, nullptr, false, 0, makespanDominate);
-            //         population[i].generation = generation;
-            //     }
-            // }
             BMTC_currentGen = generation;
             std::vector<BMTC_TwoPart_Chromosome> new_population;
             for (uint32_t i = 0; i < population_size / 2; i++) {
@@ -1179,8 +1182,8 @@ namespace Clustering { // TODO Implement more
                 //     population[id1],
                 //     population[id2]
                 // );
-                p1 = BMTC_TwoPart_Chromosome::Mutate(p1, 0.2);
-                p2 = BMTC_TwoPart_Chromosome::Mutate(p2, 0.2);
+                p1 = BMTC_TwoPart_Chromosome::Mutate(p1, 0.1);
+                p2 = BMTC_TwoPart_Chromosome::Mutate(p2, 0.1);
                 // p1 = BMTC_TwoPart_Chromosome::TCXMutate(p1);
                 // p2 = BMTC_TwoPart_Chromosome::TCXMutate(p2);
                 p1.cost = BMTC_ComputeCost_v2(p1.GetCluster(), points, nullptr, false, 0, makespanDominate);
@@ -1223,10 +1226,12 @@ namespace Clustering { // TODO Implement more
         }
 
         point2D hubPos;
-        BMTC_ComputeCost(bestSol.GetCluster(), points, &hubPos);
+        Report::CHUB_maxlength = BMTC_ComputeCost_v2(bestSol.GetCluster(), points, &hubPos, true, 0, true);
 
         auto clusters = BMTC_handleEdgeCase(bestSol.GetCluster(), points, k, hubPos);
         clusters = BMTC_localSearch(points, clusters, k);
+        Report::CHUB_maxlengthLS = BMTC_ComputeCost(bestSol.GetCluster(), points, &hubPos, true, 0, true);
+
         return clusters;
     }
 

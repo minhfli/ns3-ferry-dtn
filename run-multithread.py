@@ -15,6 +15,7 @@ import argparse
 PROGRAM = "ferry"
 PROGRAM2 = "ferryrep"
 BATCH = "20260415_5s"
+# BATCH = "20260514_runtIme"
 BATCH_ID = "conf4544" #! TEMPORARY 
 # BATCH_ID = datetime.now().strftime("%Y%m%d")
 
@@ -30,6 +31,7 @@ base_params = {
     "name": "ALGORITHM",
     "run": "RUN",
     "simTime": 15000,
+    # "simTime": 0.1,
     "commRange": 150,
     "ferryHeight": 50,
     "areaWidth": 4000,
@@ -46,28 +48,29 @@ base_params = {
 # ============================================================
 
 param_grid = { # change or set to default grid for custom run
-    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "CHUB"],
-    # "name": ["TABAF", "TABARA"],
-    "name": ["SNW_FPOD"],
+    # "name": [ "SIRA", "PIGEON", "TABAF", "TABARA", "CHUB", "SNW_FPOD"],
+    # "name": ["SNW_FPOD"],
+    "name": ["CHUB"],
 
     "nGrounds": [25],
-    # "nFerrys": [ 10],
-    "nFerrys": [ 3, 4, 5, 6, 7, 8, 9, 10],
+    "nFerrys": [ 10],
+    # "nFerrys": [ 3, 4, 5, 6, 7, 8, 9, 10],
 
     # "nGrounds": [50],
     # "nFerrys": [15],
     # "nFerrys": [5, 7, 10, 12, 15, 17, 20],
 
     "groundBufferSize": [10000],
-    # "ferryBufferSize": [50, 75, 100, 150, 200, 250, 300, 1000],
-    "ferryBufferSize": [1000],
+    "ferryBufferSize": [50, 75, 100, 150, 200, 250, 300, 1000],
+    # "ferryBufferSize": [1000],
 
     # "bundleTTL": [ 600000000, 900000000, 1200000000], # 7.5min, 10min, 15min
-    # "bundleTTL": [450000000], 
-    "bundleTTL": [600000000, 900000000], 
+    "bundleTTL": [900000000], 
+    # "bundleTTL": [600000000, 900000000], 
 
     # "ferryComm": [False, True],
     "ferryComm": [False, True],
+    # "ferryComm": [True],
 }
 
 # noFC_only = ["TABARA"]
@@ -103,6 +106,11 @@ algo_variants= {
             "waypointSelectMode": "DETERMINISTIC",
             "TABAF_originalFowardScheme": True,
         },
+        # "testwarmup": {
+        #     "waypointSelectMode": "DETERMINISTIC",
+        #     "TABAF_originalFowardScheme": True,
+        #     "warmupTime": 2000,
+        # },
         # "noSharing": {
         #     "waypointSelectMode": "DETERMINISTIC",
         #     "TABAF_shareVisitTime": False,
@@ -249,24 +257,128 @@ algo_variants= {
         },   
     },
     "CHUB":{
-        "default": {
-            "warmupTime": 500,
-            "CHUB_virtualHub": True,
-        },   
-        # "realHub": {
+        # "default": {
         #     "warmupTime": 500,
-        #     "CHUB_virtualHub": False,
-        # },
-        "routeExtend": {
+        #     "CHUB_virtualHub": True,
+        # },   
+        "realHub": {
             "warmupTime": 500,
-            "CHUB_virtualHub": True,
-            "CHUB_routeExtend": True,
+            "CHUB_virtualHub": False,
+            "CHUB_routeExtend": False,
+            "CHUB_gaVersion" :  2,
+            "CHUB_costVersion" : 2,
+            "CHUB_allowSearchEmptyRoute": True,
         },
+        # "routeExtend": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": True,
+        #     "CHUB_routeExtend": True,
+        # },
         # "routeExtend_v3": {
         #     "warmupTime": 500,
         #     "CHUB_virtualHub": True,
         #     "CHUB_routeExtend": True,
         #     "CHUB_squareREReward": True,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        # },
+        # "default_v4": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": True,
+        #     "CHUB_routeExtend": False,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        # },
+        # "routeExtend_v4": {
+        #     "warmupTime": 500,
+        #     "CHUB_virtualHub": True,
+        #     "CHUB_routeExtend": True,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        # },
+        # "ga10k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 10000,
+        # },
+        # "ga20k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 20000,
+        # },
+        # "ga30k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 30000,
+        # },
+        # "ga40k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 40000,
+        # },
+        # "ga50k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 50000,
+        # },
+        # "ga60k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 60000,
+        # },
+        # "ga70k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 70000,
+        # },
+        # "ga80k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 80000,
+        # },
+        # "ga90k": {
+        #     "warmupTime": 1,
+        #     "CHUB_squareREReward": False,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 90000,
+        # },
+        # "ga100k": {
+        #     "warmupTime": 1,
+        #     "CHUB_virtualHub": True,
+        #     "CHUB_gaVersion" :  2,
+        #     "CHUB_costVersion" : 2,
+        #     "CHUB_allowSearchEmptyRoute": True,
+        #     "CHUB_gaIter": 100000,
         # },
     },
 

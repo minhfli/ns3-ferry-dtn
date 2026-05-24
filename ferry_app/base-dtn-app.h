@@ -615,13 +615,16 @@ void BaseDtnApp::RemoveExpiredBundles() {
         // Điều kiện 1: Hết TTL
         if (b.creationTime + config.bundleTTL < currentTime) return true;
 
-        // Điều kiện 2: Impossible (nếu bay thẳng vẫn không kịp)
-        Vector3D currentPos = m_mobility->GetPosition();
-        point2D target = groundNodePos[rawNodeId(b.destination.Get())];
-        double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - 2.0 * config.commRange;
+        if (config.predictRemove) {
+            // Điều kiện 2: Impossible (nếu bay thẳng vẫn không kịp)
+            Vector3D currentPos = m_mobility->GetPosition();
+            point2D target = groundNodePos[rawNodeId(b.destination.Get())];
+            double dist = point2D{ target.x - currentPos.x, target.y - currentPos.y }.length() - 2.0 * config.commRange;
 
-        double timeToReach = dist / config.ferrySpeed;
-        return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));
+            double timeToReach = dist / config.ferrySpeed;
+            return (Simulator::Now() + Seconds(timeToReach) > MicroSeconds(b.creationTime + config.bundleTTL));
+        }
+        return false;
         }), m_buffer.end());
 
 }

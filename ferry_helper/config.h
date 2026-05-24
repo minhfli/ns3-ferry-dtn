@@ -94,6 +94,7 @@ struct Config {
     std::string bundleGenDestinationSheduler = PARETO_7030;
     bool bundleGenParetoMatch = false;
 
+    bool predictRemove = true;
     // double bundleGenRate = 5.0; // 1 bundle every ... seconds
     double maxBaseBundleGenRate = 30.0;
     double minBaseBundleGenRate = 30.0;
@@ -148,11 +149,14 @@ struct Config {
 
     uint32_t HUB_nHubs = 1;
 
+    bool CHUB_allowSearchEmptyRoute = false;
     bool CHUB_virtualHub = true;
     bool CHUB_routeExtend = false;
     bool CHUB_reWait = false;
     bool CHUB_squareREReward = false;
+    uint32_t CHUB_costVersion = 1;
     uint32_t CHUB_gaVersion = 2;
+    uint32_t CHUB_gaIter = 50000;
 
 
 } config;
@@ -211,6 +215,8 @@ void ParseConfig(int argc, char* argv[]) {
 
     cmd.AddValue("bundleTTL", "Bundle TTL", config.bundleTTL);
     cmd.AddValue("ferryComm", "Enable ferry communication", config.enableFerryComm);
+    cmd.AddValue("predictRemove", "Predict bundle removal", config.predictRemove);
+
     // cmd.AddValue("bundleAckTimeout", "Bundle ACK timeout", config.bundleAckTimeout);
     cmd.AddValue("SnW_replications", "SnW replications", config.SnW_replications);
     cmd.AddValue("replicationBaseDtnAppMode", "Replication Dtn App Mode", config.replicationBaseDtnAppMode);
@@ -234,6 +240,10 @@ void ParseConfig(int argc, char* argv[]) {
     cmd.AddValue("CHUB_reWait", "Use re-wait", config.CHUB_reWait);
     cmd.AddValue("CHUB_squareREReward", "Use squared route extend reward", config.CHUB_squareREReward);
     cmd.AddValue("CHUB_gaVersion", "GA version", config.CHUB_gaVersion);
+    cmd.AddValue("CHUB_costVersion", "Ga Cost version", config.CHUB_costVersion);
+    cmd.AddValue("CHUB_allowSearchEmptyRoute", "Allow search empty route", config.CHUB_allowSearchEmptyRoute);
+    cmd.AddValue("CHUB_gaIter", "GA iteration", config.CHUB_gaIter);
+
     cmd.Parse(argc, argv);
     return;
 }

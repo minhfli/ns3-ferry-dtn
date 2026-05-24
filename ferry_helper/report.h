@@ -37,6 +37,9 @@ namespace Report {
     double averageTop30pDelay = 0;
     double averageTop50pDelay = 0;
 
+    double CHUB_maxlength = 0;
+    double CHUB_maxlengthLS = 0;
+
     void Init() {
         for (uint32_t i = 0; i < config.nGrounds; i++) {
             for (uint32_t j = 0; j < config.nFerrys; j++) {
@@ -145,6 +148,8 @@ namespace Report {
         file << "Low Connection (20%): " << lowConnection_20p << std::endl;
         file << "Low Connection (30%): " << lowConnection_30p << std::endl;
         file << "Low Connection (50%): " << lowConnection_50p << std::endl;
+        file << "CHUB_maxlength: " << CHUB_maxlength << std::endl;
+        file << "CHUB_maxlengthLS: " << CHUB_maxlengthLS << std::endl;
         file.close();
     }
 }

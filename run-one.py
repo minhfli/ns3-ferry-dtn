@@ -9,14 +9,18 @@ params = {
     "name": "SNW_FPOD", # algorithm name
     "vi": True,
     "batch": "default",
-    "run": "test5", # run name for log file
+    "run": "predict4", # run name for log file
     "simTime": 10000,
     "warmupTime": 500,
     "hoverTime": 5,
-    "nGrounds": 50,
-    "nFerrys": 10,
+    "nGrounds": 20,
+    "nFerrys": 7,
+    "ferryComm": False, # enable communication between ferry
     #* some algorithm specific config
+    "predictRemove": True,
+    "TABAF_shareVisitTime": False,
     # "waypointSelectMode" :"PROBABILISTIC",
+    
     "replicationBaseDtnAppMode": "EPIDEMIC",
     "SnW_replications": 2,
     "waypointSelectMode" :"DETERMINISTIC",
@@ -25,7 +29,9 @@ params = {
     "HUB_nHubs": 1,
     "CHUB_virtualHub": True,
     "CHUB_routeExtend": True,
+    "CHUB_squareREReward": True,
     "CHUB_gaVersion" :  2,
+    "CHUB_costVersion" : 2,
     # "CHUB_reWait": True,
     #* default config
     "commRange": 150,
@@ -40,7 +46,6 @@ params = {
     "genDstScheduler": "PARETO_6040",
     "genParetoMatch": False,
     "bundleTTL": 600000000, # microsec
-    "ferryComm": True, # enable communication between ferry
 }
 
 if params["name"].startswith("SNW") or params["name"].startswith("EPIDEMIC"):

@@ -11,6 +11,7 @@
 #include "../ferry_helper/graph-helper.h"
 #include "../ferry_helper/cluster-helper.h"
 #include "../ferry_helper/tsp-helper.h"
+#include "../ferry_helper/report.h"
 
 #pragma region Setup
 namespace CHUB {
@@ -37,19 +38,19 @@ namespace CHUB {
             else if (config.CHUB_gaVersion == 2)
                 m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
                     groundNodePos, config.nFerrys,
-                    300, 50000);
+                    300, config.CHUB_gaIter);
             else {
                 NS_LOG_UNCOND("ERROR: Invalid GA version for CHUB" << config.CHUB_gaVersion);
                 exit(1);
             }
         }
         else { // use 1 uav as real hub
-            m_clusters = Clustering::BalancedMT_wCenterClustering_GA(
+            m_clusters = Clustering::BalancedMT_wCenterClustering_GA_v2(
                 groundNodePos, config.nFerrys - 1,
-                200, 7000);
+                300, 50000);
             m_clusters.push_back({ });
         }
-        Clustering::BMTC_ComputeCost(m_clusters, groundNodePos, &m_hubPos);
+        Clustering::BMTC_ComputeCost(m_clusters, groundNodePos, &m_hubPos, true, 0, true); // get final hub position
         return m_clusters;
     }
 
